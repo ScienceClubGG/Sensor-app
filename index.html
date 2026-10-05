@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sensor-Baukasten</title>
+<meta name="theme-color" content="#FFFFFF" id="themeColor">
+<script>
+/* Design vor dem ersten Zeichnen setzen, damit nichts aufblitzt */
+try{var t=localStorage.getItem("sensor-baukasten-theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t;}catch(e){}
+</script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="description" content="Übersicht über selbst gebaute ESP32-Sensoren mit 3D-Modellen, Verkabelung, Quellcode und phyphox-Messdaten.">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sensoren">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<script src="three.min.js"></script>
+<script>window.XLSX_SRC="xlsx.full.min.js";</script>
+<style>
+/* Hell: weiß mit dunkelblauen Akzenten */
+:root{
+  --paper:#FFFFFF; --grid:#F1F4FA; --grid-strong:#E3E9F4;
+  --ink:#0E2A5C; --ink-soft:#4C5D80; --line:#D3DCEB;
+  --accent:#12357A; --on-accent:#FFFFFF; --accent-soft:#E7EEFA;
+  --blue:#12357A; --blue-soft:#E7EEFA; --surface:#FFFFFF;
+  --ok:#1F7A4D; --warn:#B4441B;
+  --code-bg:#0E2A5C; --code-ink:#E6EEFF;
+  --font-head:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-code:ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+/* Dunkel: dunkelblau mit hellblauen Akzenten */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0A1730; --grid:#0D1D3B; --grid-strong:#122651;
+    --ink:#E4EEFF; --ink-soft:#9DB3D9; --line:#21406F;
+    --accent:#6CC3FF; --on-accent:#06132A; --accent-soft:#133461;
+    --blue:#6CC3FF; --blue-soft:#133461; --surface:#0F2142;
+    --ok:#5CC38E; --warn:#FF9466; --code-bg:#06101F; --code-ink:#D6E6FF;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0A1730; --grid:#0D1D3B; --grid-strong:#122651;
+  --ink:#E4EEFF; --ink-soft:#9DB3D9; --line:#21406F;
+  --accent:#6CC3FF; --on-accent:#06132A; --accent-soft:#133461;
+  --blue:#6CC3FF; --blue-soft:#133461; --surface:#0F2142;
+  --ok:#5CC38E; --warn:#FF9466; --code-bg:#06101F; --code-ink:#D6E6FF;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:calc(env(safe-area-inset-top,0px) + 64px)}
+body{
+  margin:0; min-height:100%; color:var(--ink); font-family:var(--font-body);
+  font-size:1rem; line-height:1.55;
+  background-color:var(--paper);
+  background-image:
+    linear-gradient(var(--grid-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-strong) 1px, transparent 1px),
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:50px 50px,50px 50px,10px 10px,10px 10px;
+  background-attachment:fixed;
+}
+img,canvas,svg{max-width:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 18px}
+
+/* Kopf */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.top-inner{display:flex;align-items:center;gap:14px;min-height:60px;flex-wrap:wrap;padding:6px 0;position:relative}
+.brand{font-family:var(--font-head);font-weight:800;font-size:1.15rem;letter-spacing:-.01em;margin-right:auto;display:flex;align-items:center;gap:8px}
+.brand .logo{width:34px;height:34px;flex:none;display:block}
+.theme-btn{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+.theme-btn svg{width:20px;height:20px}
+.theme-btn .moon{display:none}
+:root[data-theme="dark"] .theme-btn .sun{display:none}
+:root[data-theme="dark"] .theme-btn .moon{display:block}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .theme-btn .sun{display:none}:root:not([data-theme="light"]) .theme-btn .moon{display:block}}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+.tab{border:0;background:transparent;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:700;color:var(--ink-soft);white-space:nowrap}
+.tab[aria-selected="true"]{background:var(--accent);color:var(--on-accent)}
+.tab:hover:not([aria-selected="true"]){background:var(--accent-soft);color:var(--ink)}
+/* Handy: Titel mittig, Reiterleiste über die ganze Breite */
+@media (max-width:700px){
+  .top > .wrap{padding:0}
+  .top-inner{flex-direction:column;align-items:stretch;gap:0;padding:0;min-height:0}
+  .brand{margin:0;justify-content:center;padding:10px 60px;min-height:56px;font-size:1.2rem}
+  .theme-btn{position:absolute;right:12px;top:8px}
+  nav.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--line);overflow:visible}
+  .tab{border-radius:0;padding:12px 2px 11px;font-size:.92rem;text-align:center}
+  .tab[aria-selected="true"]{background:transparent;color:var(--accent);box-shadow:inset 0 -3px 0 var(--accent)}
+  .tab:hover:not([aria-selected="true"]){background:transparent}
+  main{padding-top:22px}
+}
+
+main{padding:28px 0 64px}
+section.view{display:none}
+section.view.active{display:block}
+
+h1,h2,h3{font-family:var(--font-head);line-height:1.12;margin:0}
+h1{font-size:clamp(2.1rem,6vw,3.6rem);font-weight:800;letter-spacing:-.025em;max-width:16ch}
+h2{font-size:clamp(1.5rem,3.6vw,2rem);font-weight:700;letter-spacing:-.015em}
+h3{font-size:1.15rem;font-weight:700}
+p{margin:0 0 1em;max-width:68ch}
+.lead{font-size:1.12rem;color:var(--ink-soft);max-width:60ch}
+.muted{color:var(--ink-soft)}
+.small{font-size:.9rem}
+
+/* Überblick */
+.hero{padding:10px 0 26px}
+.hero .meta{color:var(--ink-soft);margin:0 0 18px;font-size:.95rem}
+.hero h1{margin-bottom:18px}
+
+.chain{display:flex;align-items:stretch;gap:0;margin:30px 0 14px;overflow-x:auto;padding-bottom:6px}
+.node{flex:1 0 128px;background:var(--surface);border:2px solid var(--ink);padding:14px 12px;position:relative;min-width:128px}
+.node + .node{margin-left:26px}
+.node + .node::before{content:"";position:absolute;left:-28px;top:50%;width:26px;border-top:2px dashed var(--ink)}
+.node + .node::after{content:"";position:absolute;left:-9px;top:calc(50% - 5px);border:5px solid transparent;border-left:7px solid var(--ink)}
+.node b{display:block;font-family:var(--font-head);font-size:1.02rem}
+.node span{font-size:.85rem;color:var(--ink-soft)}
+.node.phy{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.node.phy span{color:color-mix(in srgb,var(--on-accent) 78%,transparent)}
+
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px;margin-top:34px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:20px}
+.panel h3{margin-bottom:8px}
+.panel p:last-child{margin-bottom:0}
+
+.sensor-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px 7px 10px;cursor:pointer;font-weight:700;font-size:.95rem}
+.chip i{width:10px;height:10px;border-radius:50%;flex:none}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--on-accent)}
+
+/* Sensoren */
+.sensor-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:26px;margin-top:20px;align-items:start}
+@media (max-width:820px){.sensor-layout{grid-template-columns:1fr}}
+.stage{position:relative;aspect-ratio:4/3;border:2px solid var(--ink);background:radial-gradient(ellipse at 50% 40%,var(--surface),color-mix(in srgb,var(--surface) 70%,var(--paper)));overflow:hidden;touch-action:none;cursor:grab}
+.stage:active{cursor:grabbing}
+.stage canvas{display:block;width:100%;height:100%}
+.stage-hint{position:absolute;left:10px;bottom:8px;font-size:.8rem;color:var(--ink-soft);pointer-events:none}
+.stage-tag{position:absolute;top:0;left:0;padding:6px 12px;color:#fff;font-weight:700;font-size:.9rem}
+.stage-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--ink-soft)}
+.stage-btns{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
+.icon-btn{border:1.5px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;font-size:.85rem}
+
+.sensor-title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.sensor-title .module{color:var(--ink-soft);font-weight:700}
+.qty{display:inline-block;font-weight:700;padding:2px 10px;border-radius:4px;color:#fff;margin:6px 0 14px;font-size:.92rem}
+table.spec{width:100%;border-collapse:collapse;font-size:.95rem;margin:8px 0 18px;font-variant-numeric:tabular-nums}
+table.spec th,table.spec td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.spec th{width:44%;font-weight:400;color:var(--ink-soft)}
+table.spec td{font-weight:700}
+.table-scroll{overflow-x:auto}
+
+details{border:1px solid var(--line);border-radius:4px;background:var(--surface);margin:10px 0}
+summary{cursor:pointer;padding:12px 14px;font-weight:700}
+details > div{padding:0 14px 14px}
+pre.code{background:var(--code-bg);color:var(--code-ink);padding:14px;border-radius:4px;overflow-x:auto;font-family:var(--font-code);font-size:.82rem;line-height:1.5;margin:8px 0}
+
+.btn{display:inline-flex;align-items:center;gap:8px;border:2px solid var(--accent);background:var(--accent);color:var(--on-accent);padding:9px 16px;border-radius:6px;font-weight:700;cursor:pointer;text-decoration:none}
+.btn:hover{filter:brightness(1.12)}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn.ghost:hover{background:var(--accent-soft);filter:none}
+.btn.danger{background:transparent;color:var(--warn);border-color:var(--warn)}
+.btn.danger:hover{background:var(--warn);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+
+/* Messen */
+.steps{list-style:none;padding:0;margin:20px 0 0;counter-reset:s;display:grid;gap:14px}
+.steps > li{counter-increment:s;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);padding:16px 18px 16px 58px;position:relative;border-radius:2px}
+.steps > li::before{content:counter(s);position:absolute;left:16px;top:14px;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-family:var(--font-head);font-weight:800}
+.steps h3{margin-bottom:6px}
+.steps ol{margin:6px 0 10px;padding-left:20px}
+label.field{display:block;font-weight:700;margin:12px 0 4px}
+input[type=text],select,textarea{width:100%;border:1.5px solid var(--line);background:var(--paper);border-radius:6px;padding:9px 11px}
+textarea{min-height:110px;font-family:var(--font-code);font-size:.85rem}
+input[type=file]{max-width:100%}
+.inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.inline input[type=text]{flex:1 1 180px;width:auto}
+
+.chart-box{border:1.5px solid var(--ink);background:var(--surface);margin:12px 0;position:relative}
+.chart-box canvas{display:block;width:100%;height:260px}
+.chart-empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--ink-soft);text-align:center;padding:16px}
+.stat-row{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:.92rem;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.stat-row b{color:var(--ink)}
+
+.notice{border-left:4px solid var(--accent);background:var(--blue-soft);padding:10px 14px;border-radius:2px;margin:10px 0;font-size:.95rem}
+.notice.warn{border-left-color:var(--warn)}
+
+/* Gespeichert */
+.saved-list{display:grid;gap:14px;margin-top:18px}
+.saved{background:var(--surface);border:1px solid var(--line);border-radius:4px;display:grid;grid-template-columns:150px 1fr;gap:16px;padding:14px;align-items:center}
+@media (max-width:560px){.saved{grid-template-columns:1fr}}
+.saved canvas{width:100%;height:80px;display:block;border:1px solid var(--line);background:var(--paper)}
+.saved h3{font-size:1.05rem;margin-bottom:2px}
+.saved .btn-row{margin:8px 0 0}
+.saved .btn{padding:6px 12px;font-size:.9rem}
+.empty{border:2px dashed var(--line);padding:30px;text-align:center;color:var(--ink-soft);margin-top:18px;background:var(--surface)}
+
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:8px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.seg{display:flex;border:2px solid var(--ink);border-bottom:0}
+.seg button{flex:1;border:0;background:var(--surface);padding:9px 6px;font-weight:700;cursor:pointer}
+.seg button + button{border-left:2px solid var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.seg button[hidden]{display:none}
+.case-ov{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;background:color-mix(in srgb,var(--surface) 90%,transparent)}
+.case-ov p{margin:0;max-width:40ch}
+.case-ov.show{display:flex}
+.case-ov.compact{inset:auto;top:8px;right:8px;padding:0;background:transparent;flex-direction:row;gap:6px}
+.case-ov.compact p{display:none}
+.case-ov.compact .btn{padding:4px 10px;font-size:.85rem}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:-1px;border:1px solid rgba(0,0,0,.3)}
+.wire-note{display:block;font-weight:400;color:var(--ink-soft);font-size:.88rem}
+.view-note{font-size:.9rem;color:var(--ink-soft);margin:8px 0 0}
+[hidden]{display:none !important}
+.way-seg{border-bottom:2px solid var(--ink);margin:16px 0 4px;max-width:520px}
+.ble-status{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-weight:700;font-size:.92rem;margin:4px 0 10px;background:var(--paper)}
+.ble-status i{width:10px;height:10px;border-radius:50%;background:var(--ink-soft)}
+.ble-status.on i{background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 25%,transparent)}
+.ble-status.busy i{background:var(--accent)}
+.ble-status.err i{background:var(--warn)}
+.live-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:6px 0 12px}
+.tile{border:1.5px solid var(--line);border-radius:6px;padding:10px 12px;background:var(--paper)}
+.tile small{display:block;color:var(--ink-soft);font-weight:700;font-size:.82rem}
+.tile b{font-family:var(--font-head);font-size:1.7rem;font-variant-numeric:tabular-nums;line-height:1.15}
+.tile span{color:var(--ink-soft);margin-left:4px;font-weight:700}
+.live-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0}
+.live-time{font-family:var(--font-head);font-weight:700;font-size:1.25rem;font-variant-numeric:tabular-nums;margin-left:auto}
+.rec-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--warn);margin-right:6px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rec-dot{animation:none}}
+.seminar-note{border-top:1px solid var(--line);margin-top:48px;padding-top:16px;color:var(--ink-soft);font-size:.9rem;max-width:none}
+.install-row{margin-top:18px}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-inner">
+    <div class="brand"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><rect x="1" y="1" width="62" height="62" rx="14" fill="#0E2A5C" stroke="#2C5DA8" stroke-width="1.5"/><path d="M15 7V57M7 15H57" stroke="#1B3E7A" stroke-width=".6"/><path d="M21 7V57M7 21H57" stroke="#1B3E7A" stroke-width=".6"/><path d="M27 7V57M7 27H57" stroke="#1B3E7A" stroke-width=".6"/><path d="M33 7V57M7 33H57" stroke="#1B3E7A" stroke-width=".6"/><path d="M39 7V57M7 39H57" stroke="#1B3E7A" stroke-width=".6"/><path d="M45 7V57M7 45H57" stroke="#1B3E7A" stroke-width=".6"/><path d="M51 7V57M7 51H57" stroke="#1B3E7A" stroke-width=".6"/><path d="M11 9V53H57" fill="none" stroke="#9DB8E6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 12.6 11 9 13.4 12.6M53.4 50.6 57 53 53.4 55.4" fill="none" stroke="#9DB8E6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.50 31.00 L13.98 27.94 L14.47 25.12 L14.95 22.64 L15.43 20.60 L15.91 19.05 L16.40 18.05 L16.88 17.61 L17.36 17.73 L17.85 18.38 L18.33 19.52 L18.81 21.08 L19.30 22.98 L19.78 25.14 L20.26 27.46 L20.74 29.82 L21.23 32.15 L21.71 34.35 L22.19 36.32 L22.68 38.01 L23.16 39.34 L23.64 40.29 L24.12 40.83 L24.61 40.95 L25.09 40.66 L25.57 39.99 L26.06 38.98 L26.54 37.68 L27.02 36.17 L27.51 34.50 L27.99 32.75 L28.47 31.00 L28.95 29.31 L29.44 27.76 L29.92 26.40 L30.40 25.27 L30.89 24.42 L31.37 23.86 L31.85 23.62 L32.34 23.69 L32.82 24.05 L33.30 24.67 L33.78 25.53 L34.27 26.58 L34.75 27.77 L35.23 29.05 L35.72 30.35 L36.20 31.64 L36.68 32.84 L37.16 33.93 L37.65 34.86 L38.13 35.60 L38.61 36.12 L39.10 36.41 L39.58 36.48 L40.06 36.32 L40.55 35.95 L41.03 35.40 L41.51 34.68 L41.99 33.85 L42.48 32.93 L42.96 31.97 L43.44 31.00 L43.93 30.07 L44.41 29.21 L44.89 28.46 L45.38 27.84 L45.86 27.37 L46.34 27.07 L46.82 26.94 L47.31 26.97 L47.79 27.17 L48.27 27.52 L48.76 27.99 L49.24 28.57 L49.72 29.22 L50.20 29.92 L50.69 30.64 L51.17 31.35 L51.65 32.02 L52.14 32.62 L52.62 33.13 L53.10 33.53 L53.59 33.82 L54.07 33.98 L54.55 34.02 L55.03 33.93 L55.52 33.73 L56.00 33.42" fill="none" stroke="#6CC3FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13.50" cy="31.00" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="17.36" cy="17.73" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="21.23" cy="32.15" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="25.09" cy="40.66" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="28.95" cy="29.31" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="32.82" cy="24.05" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="36.68" cy="32.84" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="40.55" cy="35.95" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="44.41" cy="29.21" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="48.27" cy="27.52" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="52.14" cy="32.62" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/><circle cx="56.00" cy="33.42" r="2.1" fill="#fff" stroke="#6CC3FF" stroke-width="1.3"/></svg><span>Sensor-Baukasten</span></div>
+    <nav class="tabs" role="tablist" aria-label="Bereiche">
+      <button class="tab" role="tab" data-view="idee" aria-selected="true">Idee</button>
+      <button class="tab" role="tab" data-view="sensoren" aria-selected="false">Sensoren</button>
+      <button class="tab" role="tab" data-view="messen" aria-selected="false">Messen</button>
+      <button class="tab" role="tab" data-view="gespeichert" aria-selected="false">Gespeichert <span id="savedCount"></span></button>
+    </nav>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Dunkles Design einschalten">
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- IDEE -->
+<section class="view active" id="view-idee">
+  <div class="hero">
+    <h1>Eigene Messsensoren für den Physikunterricht</h1>
+    <p class="lead">Günstige Sensoren, ein ESP32 und das Smartphone ersetzen teure Messwerterfassung. Der ESP32 liest den Sensor aus und schickt die Werte per Bluetooth an die App phyphox, die sie live anzeigt und exportiert.</p>
+  </div>
+
+  <div class="chain" aria-label="Messkette">
+    <div class="node"><b>Sensor</b><span>misst eine physikalische Größe</span></div>
+    <div class="node"><b>ESP32</b><span>liest aus, rechnet um</span></div>
+    <div class="node"><b>Bluetooth LE</b><span>überträgt kabellos</span></div>
+    <div class="node phy"><b>Live-Anzeige</b><span>hier im Browser oder in phyphox</span></div>
+    <div class="node"><b>Diese App</b><span>speichert und lädt herunter</span></div>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h3>Warum selbst bauen?</h3>
+      <p>Lernende verstehen, was ein Sensor eigentlich misst, wenn sie Schaltung und Programm selbst erstellen. Das passt zum Makerspace-Gedanken und zum forschenden Lernen.</p>
+    </div>
+    <div class="panel">
+      <h3>phyphox oder Browser</h3>
+      <p>Der ESP32 spricht das offene Bluetooth-Protokoll von phyphox. Die Werte lassen sich deshalb in der phyphox-App anzeigen oder ohne Zusatz-App direkt hier im Browser messen.</p>
+    </div>
+    <div class="panel">
+      <h3>Was diese App macht</h3>
+      <p>Sie zeigt alle Sensoren mit 3D-Modell, Verkabelung und technischen Daten, liefert den ESP32-Code, übernimmt phyphox-Exporte und speichert Messungen – als Text oder Excel-Tabelle zum Herunterladen.</p>
+    </div>
+  </div>
+
+  <h2 style="margin-top:42px">Unsere Sensoren</h2>
+  <div class="sensor-strip" id="ideaStrip"></div>
+  <div class="install-row" id="installRow" hidden><button class="btn ghost" id="installBtn" type="button">Als App installieren</button></div>
+  <p class="seminar-note">Entstanden im W-Seminar „Steuerung von Mikroprozessoren“ (Physik / Informatik).</p>
+</section>
+
+<!-- SENSOREN -->
+<section class="view" id="view-sensoren">
+  <h2>Sensoren</h2>
+  <div class="sensor-strip" id="sensorStrip" role="group" aria-label="Sensor auswählen"></div>
+
+  <div class="sensor-layout">
+    <div>
+      <div class="seg" role="group" aria-label="Darstellung">
+        <button data-mode="part" aria-pressed="true">Bauteil</button>
+        <button data-mode="wired" aria-pressed="false">Verkabelt</button>
+        <button data-mode="case" aria-pressed="false">Gehäuse</button>
+      </div>
+      <div class="stage" id="stage">
+        <div class="stage-tag" id="stageTag"></div>
+        <div class="stage-fallback" id="stageFallback">Das 3D-Modell konnte nicht geladen werden. Prüfe die Internetverbindung und lade die Seite neu.</div>
+        <div class="case-ov" id="caseOv">
+          <p id="caseMsg"></p>
+          <label class="btn" for="stlIn" id="stlLabel" style="cursor:pointer">STL-Datei laden</label>
+          <input type="file" id="stlIn" accept=".stl" hidden>
+          <button class="btn ghost" id="caseRemove" hidden>Gehäuse entfernen</button>
+        </div>
+        <div class="stage-hint">Ziehen zum Drehen</div>
+        <div class="stage-btns">
+          <button class="icon-btn" id="zoomOut" aria-label="Verkleinern">−</button>
+          <button class="icon-btn" id="zoomIn" aria-label="Vergrößern">+</button>
+          <button class="icon-btn" id="resetView">Ansicht zurücksetzen</button>
+        </div>
+      </div>
+      <p class="view-note" id="viewNote"></p>
+      <details id="principleBox" open>
+        <summary>Funktionsprinzip</summary>
+        <div id="principle"></div>
+      </details>
+    </div>
+
+    <div>
+      <div class="sensor-title"><h2 id="sName"></h2><span class="module" id="sModule"></span></div>
+      <span class="qty" id="sQty"></span>
+      <div class="table-scroll"><table class="spec" id="sSpec"></table></div>
+      <h3>Anschluss am ESP32</h3>
+      <div class="table-scroll"><table class="spec" id="sWire"></table></div>
+      <details id="phyBox">
+        <summary>phyphox-Anbindung (Auszug)</summary>
+        <div>
+          <p class="small muted">Dieser Teil beschreibt das Experiment für phyphox und sendet die Messwerte. Er ist im vollständigen Quellcode bereits enthalten.</p>
+          <pre class="code" id="sPhy"></pre>
+          <button class="btn ghost" data-copy="sPhy">Auszug kopieren</button>
+        </div>
+      </details>
+      <details id="fullBox">
+        <summary>Vollständiger Quellcode (Arduino IDE)</summary>
+        <div>
+          <p class="small muted">Komplettes Programm mit Sensorabfrage, Fehlerprüfung, Kalibrierung, phyphox und Ausgabe im seriellen Monitor. Board „ESP32 Dev Module“ wählen.</p>
+          <pre class="code" id="sCode"></pre>
+          <div class="btn-row"><button class="btn ghost" data-copy="sCode">Code kopieren</button><button class="btn ghost" id="dlCode">Als .ino herunterladen</button></div>
+        </div>
+      </details>
+      <div class="btn-row"><button class="btn" id="goMeasure">Mit diesem Sensor messen</button></div>
+      <p class="small muted">Technische Daten nach Herstellerdatenblatt, Preise als grobe Richtwerte.</p>
+    </div>
+  </div>
+</section>
+
+<!-- MESSEN -->
+<section class="view" id="view-messen">
+  <h2>Messen</h2>
+  <p class="lead">Verbinde den ESP32 direkt hier im Browser oder miss mit der phyphox-App und hol die Daten hierher.</p>
+
+  <div class="seg way-seg" role="group" aria-label="Messweg">
+    <button data-way="web" aria-pressed="true">Direkt im Browser</button>
+    <button data-way="app" aria-pressed="false">Mit phyphox-App</button>
+  </div>
+
+  <label class="field" for="mSensor">Sensor</label>
+  <select id="mSensor"></select>
+
+  <ol class="steps">
+    <li>
+      <h3>ESP32 vorbereiten</h3>
+      <p>Lade das Programm des Sensors auf den ESP32. Er erscheint danach als Bluetooth-Gerät mit dem Namen des Sensors.</p>
+      <button class="btn ghost" id="showCode">Programm anzeigen</button>
+    </li>
+    <li data-way="web">
+      <h3>Verbinden und messen</h3>
+      <p>ESP32 einschalten und auf „ESP32 verbinden“ tippen. Der Browser zeigt die Bluetooth-Geräte in der Nähe, wähle den Namen deines Sensors.</p>
+      <div id="bleSupport"></div>
+      <div class="btn-row">
+        <button class="btn" id="bleConnect">ESP32 verbinden</button>
+        <button class="btn ghost" id="bleDisconnect" hidden>Trennen</button>
+        <button class="btn ghost" id="liveDemo">Live-Demo ohne ESP32</button>
+      </div>
+      <div class="ble-status" id="bleStatus"><i></i><span>Nicht verbunden</span></div>
+      <div class="live-tiles" id="liveTiles"></div>
+      <div class="live-ctl" id="liveCtl" hidden>
+        <button class="btn" id="liveStart">Start</button>
+        <button class="btn ghost" id="liveStop" disabled>Stopp</button>
+        <button class="btn ghost" id="liveClear" disabled>Verwerfen</button>
+        <span class="live-time" id="liveTime">0,0 s</span>
+      </div>
+      <div class="inline" id="liveColPick" hidden>
+        <label for="liveY" class="small" style="font-weight:700">Diagramm</label>
+        <select id="liveY" style="width:auto;flex:1 1 200px"></select>
+      </div>
+      <div class="chart-box"><canvas id="liveChart"></canvas><div class="chart-empty" id="liveEmpty">Nach dem Verbinden auf Start tippen. Die Werte erscheinen hier live.</div></div>
+      <p class="small muted">Nach „Stopp“ steht die Messung im nächsten Schritt zum Speichern bereit. „Start“ setzt sie danach fort.</p>
+      <details>
+        <summary>Gerät wird nicht angezeigt?</summary>
+        <div>
+          <p class="small">Prüfe, ob der ESP32 läuft und mit keinem anderen Handy oder phyphox verbunden ist. Ein ESP32 kann nur eine Verbindung gleichzeitig halten. Notfalls alle Bluetooth-Geräte anzeigen:</p>
+          <button class="btn ghost" id="bleConnectAll">Alle Geräte anzeigen</button>
+        </div>
+      </details>
+    </li>
+    <li data-way="app">
+      <h3>In phyphox messen</h3>
+      <ol>
+        <li>phyphox öffnen und auf das Plus tippen.</li>
+        <li>Im Plus-Menü nach Bluetooth-Geräten suchen und den ESP32 antippen. phyphox lädt das Experiment automatisch vom ESP32.</li>
+        <li>Messung mit dem Startknopf beginnen und wieder stoppen.</li>
+      </ol>
+      <details>
+        <summary>Optional: phyphox-Fernzugriff im Browser öffnen</summary>
+        <div>
+          <p class="small">In phyphox über das Menü „Fernzugriff erlauben“ aktivieren. Die App zeigt eine Adresse an. Gerät und Computer müssen im selben WLAN sein.</p>
+          <div class="inline">
+            <input type="text" id="remoteIp" placeholder="z. B. 192.168.0.23:8080" inputmode="url" aria-label="Adresse des Fernzugriffs">
+            <a class="btn ghost" id="remoteLink" href="#" target="_blank" rel="noopener">Fernzugriff öffnen</a>
+          </div>
+          <p class="small muted" style="margin-top:8px">Dort kannst du die Messung steuern und direkt am Computer exportieren.</p>
+        </div>
+      </details>
+    </li>
+    <li data-way="app">
+      <h3>Daten übernehmen</h3>
+      <p>In phyphox „Daten exportieren“ wählen, Format „CSV (Comma, decimal point)“ oder Tabulator. Die Datei hier laden oder den Inhalt einfügen.</p>
+      <div class="btn-row">
+        <label class="btn" for="fileIn" style="cursor:pointer">phyphox-Datei laden</label>
+        <input type="file" id="fileIn" accept=".csv,.txt,.tsv,text/csv,text/plain" hidden>
+        <button class="btn ghost" id="demoBtn">Beispielmessung erzeugen</button>
+      </div>
+      <details>
+        <summary>Text einfügen statt Datei</summary>
+        <div>
+          <textarea id="pasteIn" placeholder='"Time (s)","Temperature (°C)"&#10;0.0,21.4&#10;0.5,21.5'></textarea>
+          <div class="btn-row"><button class="btn ghost" id="pasteBtn">Text übernehmen</button></div>
+        </div>
+      </details>
+      <div id="importMsg"></div>
+    </li>
+    <li>
+      <h3>Prüfen und speichern</h3>
+      <div class="inline" id="colPick" hidden>
+        <label for="ySel" class="small" style="font-weight:700">Angezeigte Spalte</label>
+        <select id="ySel" style="width:auto;flex:1 1 200px"></select>
+      </div>
+      <div class="chart-box"><canvas id="draftChart"></canvas><div class="chart-empty" id="draftEmpty">Noch keine Daten. Lade einen phyphox-Export oder erzeuge eine Beispielmessung.</div></div>
+      <div class="stat-row" id="draftStats"></div>
+      <label class="field" for="mName">Name der Messung</label>
+      <input type="text" id="mName" placeholder="z. B. Abkühlung Wasser 80 °C">
+      <label class="field" for="mNote">Notiz (optional)</label>
+      <input type="text" id="mNote" placeholder="Aufbau, Bedingungen, Auffälligkeiten">
+      <div class="btn-row">
+        <button class="btn" id="saveBtn" disabled>Messung speichern</button>
+        <button class="btn ghost" id="draftDl" disabled>Text (.txt)</button>
+        <button class="btn ghost" id="draftXlsx" disabled>Excel (.xlsx)</button>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- GESPEICHERT -->
+<section class="view" id="view-gespeichert">
+  <h2>Gespeicherte Messungen</h2>
+  <p class="muted">Messungen bleiben in diesem Browser auf diesem Gerät gespeichert. Wichtige Messungen zusätzlich herunterladen: als Text oder als Excel-Datei, die sich auch mit LibreOffice öffnen lässt.</p>
+  <div class="btn-row">
+    <button class="btn" id="dlAllX">Alle als Excel (.xlsx)</button>
+    <button class="btn ghost" id="dlAll">Alle als Text (.txt)</button>
+  </div>
+  <div class="chart-box" id="viewerBox" hidden>
+    <canvas id="viewerChart"></canvas>
+  </div>
+  <div class="stat-row" id="viewerStats"></div>
+  <div class="saved-list" id="savedList"></div>
+</section>
+
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= ESP32 DevKit V1 (30 Pins) ================= */
+const ESP_A=["EN","VP","VN","D34","D35","D32","D33","D25","D26","D27","D14","D12","D13","GND","VIN"]; // linke Reihe, Antenne oben
+const ESP_B=["D23","D22","TX0","RX0","D21","D19","D18","D5","TX2","RX2","D4","D2","D15","GND2","3V3"]; // rechte Reihe
+function espName(k){
+  if(k==="GND"||k==="GND2") return "GND";
+  if(k==="VIN") return "VIN (5 V)";
+  if(k==="TX2") return "GPIO 17 (TX2)";
+  if(k==="RX2") return "GPIO 16 (RX2)";
+  if(/^D\d+$/.test(k)) return "GPIO "+k.slice(1);
+  return k;
+}
+const C={v33:0xd22b2b,v5:0xff7a00,gnd:0x2b2b2b,sda:0x2f6fe0,scl:0xf0c020,sig1:0xf0c020,sig2:0x2c9b5a,sig3:0x2f6fe0,sig4:0x8e44ad,sig5:0x16a3a3,load:0xff8c00};
+const hex=c=>"#"+c.toString(16).padStart(6,"0");
+
+/* ================= Quellcode-Generator ================= */
+function phyBlock(o){
+  const graphs=o.graphs.map((g,i)=>`  PhyphoxBleExperiment::Graph graph${i+1};
+  graph${i+1}.setLabel("${g.label}");
+  graph${i+1}.setLabelX("Zeit");
+  graph${i+1}.setUnitX("s");
+  graph${i+1}.setLabelY("${g.label}");
+  graph${i+1}.setUnitY("${g.unit}");
+  graph${i+1}.setChannel(0, ${i+1});   // x: Zeit (Kanal 0), y: ${i+1}. Wert aus write()
+  ansicht.addElement(graph${i+1});
+`).join("\n");
+  const exps=o.graphs.map((g,i)=>`  PhyphoxBleExperiment::ExportData daten${i+1};
+  daten${i+1}.setLabel("${g.label} (${g.unit})");
+  daten${i+1}.setDatachannel(${i+1});
+  exportSet.addElement(daten${i+1});`).join("\n");
+  return `// ---------- phyphox-Experiment beschreiben ----------
+// Der ESP32 schickt diese Beschreibung an phyphox. phyphox baut daraus
+// automatisch Diagramme und den Export (CSV/Excel).
+void phyphoxEinrichten() {
+  PhyphoxBLE::start(GERAETENAME);
+
+  PhyphoxBleExperiment experiment;
+  experiment.setTitle(GERAETENAME);
+  experiment.setCategory("Sensor-Baukasten");
+  experiment.setDescription("${o.descr}");
+
+  PhyphoxBleExperiment::View ansicht;
+  ansicht.setLabel("Messung");
+
+${graphs}
+  experiment.addView(ansicht);
+
+  PhyphoxBleExperiment::ExportSet exportSet;
+  exportSet.setLabel("${o.title}");
+${exps}
+  experiment.addExportSet(exportSet);
+
+  PhyphoxBLE::addExperiment(experiment);
+}`;
+}
+function fullCode(s){
+  const o=s.src;
+  const wiring=s.wires.map(w=>`    ${(w.sl||w.s).padEnd(10)} -> ${w.e?espName(w.e):w.tl}${w.note?"   ("+w.note+")":""}`).join("\n");
+  return `/*
+  ${o.title} – ${s.module}
+  Sensor-Baukasten: ESP32 + phyphox
+
+  Mikrocontroller : ESP32 DevKit V1 (Arduino IDE: Board "ESP32 Dev Module")
+  Übertragung     : Bluetooth Low Energy an die App phyphox
+  Kontrolle       : Serieller Monitor, 115200 Baud
+
+  Bibliotheken (Arduino IDE > Werkzeuge > Bibliotheken verwalten):
+${o.libs.map(l=>"    - "+l).join("\n")}
+
+  Verkabelung:
+${wiring}
+
+  Bedienung:
+    1. Programm hochladen, seriellen Monitor öffnen.
+    2. phyphox öffnen > Plus > nach Bluetooth-Geräten suchen.
+    3. Gerät "${o.title}" wählen und die Messung starten.
+${o.usage?o.usage.map(u=>"    "+u).join("\n")+"\n":""}*/
+
+#include <phyphoxBle.h>
+${o.includes}
+// ---------- Einstellungen ----------
+const char* GERAETENAME = "${o.title}";   // Name in phyphox; bei mehreren Geräten durchnummerieren
+const unsigned long MESSINTERVALL_MS = ${o.interval};
+${o.settings}
+
+// ---------- Objekte und Variablen ----------
+${o.globals}
+unsigned long letzteMessung = 0;
+
+${phyBlock(o)}
+
+// ---------- Sensor ----------
+${o.functions}
+
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+  Serial.println();
+  Serial.println("${o.title} startet ...");
+
+${o.setup}
+
+  phyphoxEinrichten();
+  Serial.println("Bereit. In phyphox mit \\"" + String(GERAETENAME) + "\\" verbinden.");
+}
+
+void loop() {
+  PhyphoxBLE::poll();   // nur bei manchen Boards nötig, schadet beim ESP32 nicht
+${o.loopPre||""}
+  if (millis() - letzteMessung < MESSINTERVALL_MS) return;
+  letzteMessung = millis();
+
+${o.loop}
+}
+`;
+}
+function phyExcerpt(s){
+  const o=s.src;
+  return `#include <phyphoxBle.h>
+
+const char* GERAETENAME = "${o.title}";
+
+${phyBlock(o)}
+
+// in setup():
+//   phyphoxEinrichten();
+//
+// in loop(), nach dem Messen:
+//   PhyphoxBLE::write(${o.writeVars});   // Reihenfolge = Kanal 1, 2, 3 ...`;
+}
+
+/* ================= Sensoren ================= */
+const SENSORS = [
+{
+  id:"temp", name:"Temperatursensor", module:"DS18B20", color:"#D2452B",
+  qty:"Temperatur in °C",
+  principle:"<p>Im Edelstahlfühler sitzt ein Halbleiter-Thermometer. Die Spannung an einer Bandlücke ändert sich linear mit der Temperatur. Ein eingebauter Analog-Digital-Wandler gibt den Wert direkt digital über den 1-Wire-Bus aus.</p><p>Einsatz: Abkühlungskurven, Wärmekapazität, Schmelzen und Erstarren.</p>",
+  specs:[["Messbereich","−55 bis +125 °C"],["Genauigkeit","±0,5 °C (−10 bis +85 °C)"],["Auflösung","9 bis 12 Bit (bis 0,0625 °C)"],["Wandlungszeit","bis 750 ms bei 12 Bit"],["Schnittstelle","1-Wire (digital)"],["Versorgung","3,0 bis 5,5 V"],["Preis","ca. 2–4 €"]],
+  wires:[
+    {s:"VCC",e:"3V3",c:C.v33,sl:"VCC (rot)"},
+    {s:"GND",e:"GND2",c:C.gnd,sl:"GND (schwarz)"},
+    {s:"DAT",e:"D4",c:C.sig1,sl:"DATA (gelb)",note:"4,7 kΩ nach 3V3, auf dem Adapter"}],
+  place:{x:0,z:-6.4,rot:-Math.PI/2},
+  src:{title:"Temperatursensor",descr:"Temperaturmessung mit DS18B20",libs:["phyphox BLE","OneWire","DallasTemperature"],
+    includes:"#include <OneWire.h>\n#include <DallasTemperature.h>\n",interval:750,
+    settings:"const int PIN_DATEN = 4;        // DATA-Leitung, 4,7 kOhm Pull-up nach 3V3\nconst int AUFLOESUNG_BIT = 12;  // 9 bis 12 Bit; 12 Bit braucht 750 ms",
+    globals:"OneWire oneWire(PIN_DATEN);\nDallasTemperature sensor(&oneWire);",
+    graphs:[{label:"Temperatur",unit:"°C"}],writeVars:"temperatur",
+    functions:`// Liest die Temperatur in °C. Liefert NAN, wenn der Sensor nicht antwortet.
+float temperaturLesen() {
+  sensor.requestTemperatures();
+  float t = sensor.getTempCByIndex(0);
+  if (t == DEVICE_DISCONNECTED_C) return NAN;
+  return t;
+}`,
+    setup:`  sensor.begin();
+  if (sensor.getDeviceCount() == 0) {
+    Serial.println("Kein DS18B20 gefunden. Verkabelung und 4,7-kOhm-Widerstand prüfen.");
+  }
+  sensor.setResolution(AUFLOESUNG_BIT);`,
+    loop:`  float temperatur = temperaturLesen();
+  if (isnan(temperatur)) {
+    Serial.println("Fehler: Sensor antwortet nicht");
+    return;
+  }
+  PhyphoxBLE::write(temperatur);
+  Serial.print("Temperatur: ");
+  Serial.print(temperatur, 2);
+  Serial.println(" °C");`},
+  demo:(n)=>{const x=[],y=[];for(let i=0;i<n;i++){const t=i*0.75;x.push(t);y.push(21+58*(1-Math.exp(-t/20))-(t>110?14*(1-Math.exp(-(t-110)/40)):0)+(Math.random()-.5)*0.12)}return [["Zeit (s)",x],["Temperatur (°C)",y]]}
+},
+{
+  id:"mag", name:"Magnetfeldsensor", module:"Hall-Sensor SS49E", color:"#2E6FD8",
+  qty:"Magnetische Flussdichte in mT",
+  principle:"<p>Fließt Strom durch ein Halbleiterplättchen in einem Magnetfeld, werden die Ladungsträger durch die Lorentzkraft seitlich abgelenkt. Es entsteht die Hallspannung, die proportional zur Flussdichte ist. Der ESP32 misst sie mit seinem Analog-Digital-Wandler.</p><p>Einsatz: Feld eines Stabmagneten, Spulenfeld, Abstandsgesetz.</p>",
+  specs:[["Messbereich","linear mind. ±65 mT, typ. ±100 mT; bei 3,3 V ca. ±75 mT"],["Empfindlichkeit","1,0 bis 1,75 mV/G, typ. 1,4 mV/G bei 5 V"],["Bei 3,3 V Versorgung","ca. 0,92 mV/G (9,2 mV/mT), da ratiometrisch"],["Nullpunkt","etwa halbe Versorgungsspannung"],["Ausgang","analog, linear"],["Versorgung","2,7 bis 6,5 V"],["Auflösung am ESP32","ca. 0,1 mT rechnerisch (12-Bit-ADC)"],["Preis","ca. 1–2 €"]],
+  wires:[
+    {s:"VCC",e:"3V3",c:C.v33},
+    {s:"GND",e:"GND2",c:C.gnd},
+    {s:"OUT",e:"D34",c:C.sig2,note:"ADC1, nur Eingang"}],
+  place:{x:0,z:-3.8,rot:0},
+  src:{title:"Magnetfeldsensor",descr:"Magnetische Flussdichte mit Hall-Sensor SS49E",libs:["phyphox BLE"],
+    includes:"",interval:50,
+    usage:["'n' im seriellen Monitor senden = Nullpunkt neu bestimmen (Magnet vorher entfernen)."],
+    settings:"const int PIN_HALL = 34;   // analoger Ausgang des SS49E\n// Datenblatt: typ. 1,4 mV/G = 14 mV/mT bei 5 V. Die Empfindlichkeit ist\n// ratiometrisch, bei 3,3 V Versorgung also kleiner. Exemplare streuen\n// (1,0 bis 1,75 mV/G), daher mit bekanntem Magnetfeld nachkalibrieren.\nconst float VERSORGUNG_V = 3.3;\nconst float EMPFINDLICHKEIT = 0.014 * VERSORGUNG_V / 5.0;   // Volt pro mT, ca. 0,0092\nconst int MITTELUNG = 20;   // Rohwerte pro Messwert mitteln (glättet Rauschen)",
+    globals:"float nullpunkt = 1.65;   // Ausgangsspannung ohne Magnetfeld in Volt",
+    graphs:[{label:"Flussdichte",unit:"mT"}],writeVars:"flussdichte",
+    functions:`// Mittelwert der Ausgangsspannung in Volt
+float spannungLesen(int anzahl) {
+  long summe = 0;
+  for (int i = 0; i < anzahl; i++) summe += analogReadMilliVolts(PIN_HALL);
+  return summe / (float)anzahl / 1000.0;
+}
+
+// Nullpunkt bestimmen: dabei darf kein Magnet in der Nähe sein
+void nullpunktKalibrieren() {
+  nullpunkt = spannungLesen(500);
+  Serial.print("Nullpunkt: ");
+  Serial.print(nullpunkt, 4);
+  Serial.println(" V");
+}`,
+    setup:`  analogReadResolution(12);
+  analogSetPinAttenuation(PIN_HALL, ADC_11db);   // Standard; Messbereich ca. 0,15 bis 3,1 V
+  Serial.println("Kalibrierung: Magnet entfernen ...");
+  delay(1500);
+  nullpunktKalibrieren();`,
+    loopPre:`  if (Serial.available() && Serial.read() == 'n') nullpunktKalibrieren();`,
+    loop:`  float spannung = spannungLesen(MITTELUNG);
+  float flussdichte = (spannung - nullpunkt) / EMPFINDLICHKEIT;   // in mT
+  PhyphoxBLE::write(flussdichte);
+  Serial.print("B = ");
+  Serial.print(flussdichte, 2);
+  Serial.println(" mT");`},
+  demo:(n)=>{const x=[],y=[];for(let i=0;i<n;i++){const t=i*0.05;x.push(t);const d=6-5*Math.abs(Math.sin(t*0.7));y.push(80/Math.pow(d,2.2)+(Math.random()-.5)*0.25)}return [["Zeit (s)",x],["Flussdichte (mT)",y]]}
+},
+{
+  id:"ui", name:"Spannungs- und Stromsensor", module:"INA219", color:"#7B3FB8",
+  qty:"Spannung in V, Stromstärke in mA, Leistung in mW",
+  principle:"<p>Der Strom fließt durch einen kleinen Messwiderstand (Shunt, 0,1 Ω). Der INA219 misst die winzige Spannung darüber und berechnet nach dem ohmschen Gesetz die Stromstärke. Gleichzeitig misst er die Spannung am Verbraucher gegen Masse.</p><p>Wichtig: Der Minuspol des Messstromkreises muss mit GND des ESP32 verbunden sein, sonst stimmt die Spannungsmessung nicht.</p><p>Einsatz: Kennlinien, Kondensatorladung, Leistung von Solarzellen.</p>",
+  specs:[["Spannung","0 bis 26 V"],["Stromstärke","bis ±3,2 A (Shunt 0,1 Ω)"],["Auflösung","4 mV; Strom 0,1 mA (Standard 32 V / 2 A) bis 0,8 mA (3,2 A)"],["Wandler","12 Bit"],["Schnittstelle","I²C, Adresse 0x40"],["Versorgung","3,0 bis 5,5 V"],["Preis","ca. 3–6 €"]],
+  wires:[
+    {s:"VCC",e:"3V3",c:C.v33},
+    {s:"GND",e:"GND2",c:C.gnd},
+    {s:"SCL",e:"D22",c:C.scl,note:"I²C-Takt"},
+    {s:"SDA",e:"D21",c:C.sda,note:"I²C-Daten"},
+    {s:"BAT-",e:"GND",c:C.gnd,sl:"Batterie −",note:"gemeinsame Masse"},
+    {s:"T+",s2:"BAT+",c:C.v33,sl:"Vin+",tl:"Batterie +",note:"Strom fließt hinein"},
+    {s:"T-",s2:"L1",c:C.load,sl:"Vin−",tl:"Lampe",note:"Strom fließt weiter zum Verbraucher"},
+    {s:"BAT-",s2:"L2",c:C.gnd,sl:"Batterie −",tl:"Lampe",note:"Rückleitung"}],
+  place:{x:0,z:-4.2,rot:Math.PI},
+  src:{title:"Spannung und Strom",descr:"Spannung, Stromstärke und Leistung mit INA219",libs:["phyphox BLE","Adafruit INA219 (installiert Adafruit BusIO mit)"],
+    includes:"#include <Wire.h>\n#include <Adafruit_INA219.h>\n",interval:100,
+    settings:"const int PIN_SDA = 21;\nconst int PIN_SCL = 22;",
+    globals:"Adafruit_INA219 ina219;   // Standardadresse 0x40",
+    graphs:[{label:"Spannung",unit:"V"},{label:"Stromstaerke",unit:"mA"},{label:"Leistung",unit:"mW"}],writeVars:"spannung, strom, leistung",
+    functions:`// (keine eigenen Hilfsfunktionen nötig, die Bibliothek rechnet um)`,
+    setup:`  Wire.begin(PIN_SDA, PIN_SCL);
+  if (!ina219.begin()) {
+    Serial.println("INA219 nicht gefunden. SDA, SCL und Versorgung prüfen.");
+    while (true) delay(1000);
+  }
+  // Messbereich wählen (Standard: 32 V, 2 A). Für kleine Ströme genauer:
+  // ina219.setCalibration_32V_1A();
+  // ina219.setCalibration_16V_400mA();`,
+    loop:`  float spannung = ina219.getBusVoltage_V();   // Spannung am Verbraucher (Vin- gegen GND)
+  float strom    = ina219.getCurrent_mA();     // Stromstärke durch den Shunt
+  float leistung = ina219.getPower_mW();       // P = U * I
+  PhyphoxBLE::write(spannung, strom, leistung);
+  Serial.printf("U = %.3f V   I = %.1f mA   P = %.1f mW\\n", spannung, strom, leistung);`},
+  demo:(n)=>{const x=[],u=[],c=[],p=[];for(let i=0;i<n;i++){const t=i*0.1;x.push(t);const uu=5*(1-Math.exp(-t/4))+(Math.random()-.5)*0.01;const cc=50*Math.exp(-t/4)+(Math.random()-.5)*0.4;u.push(uu);c.push(cc);p.push(uu*cc)}return [["Zeit (s)",x],["Spannung (V)",u],["Stromstärke (mA)",c],["Leistung (mW)",p]]}
+},
+{
+  id:"dist", name:"Abstandssensor", module:"Ultraschall HC-SR04", color:"#1F8A70",
+  qty:"Abstand in cm",
+  principle:"<p>Ein Lautsprecher sendet einen kurzen Ultraschallimpuls mit 40 kHz. Das Echo vom Hindernis trifft das Mikrofon. Aus der Laufzeit und der Schallgeschwindigkeit folgt der Abstand: s = v · t / 2.</p><p>Der ECHO-Ausgang liefert 5 V. Ein Spannungsteiler aus 1 kΩ und 2 kΩ setzt ihn auf ca. 3,3 V herab, damit der ESP32 nicht beschädigt wird.</p><p>Einsatz: Bewegungsdiagramme, Pendel, Federschwinger, gleichförmige Bewegung.</p>",
+  specs:[["Messbereich","2 bis 400 cm"],["Auflösung","ca. 0,3 cm"],["Öffnungswinkel","ca. 15°"],["Frequenz","40 kHz"],["Versorgung","5 V"],["Pegel ECHO","5 V, Spannungsteiler nötig"],["Preis","ca. 2–3 €"]],
+  wires:[
+    {s:"VCC",e:"VIN",c:C.v5,note:"5 V vom USB"},
+    {s:"GND",e:"GND2",c:C.gnd},
+    {s:"TRIG",e:"D5",c:C.sig2},
+    {s:"ECHO",s2:"BB_E",c:C.sig1,tl:"Steckbrett, 1 kΩ",note:"Teiler: 1 kΩ in Reihe"},
+    {s:"BB_N",e:"D18",c:C.sig3,sl:"Mitte Teiler",note:"zwischen 1 kΩ und 2 kΩ, ca. 3,3 V"},
+    {s:"BB_G",e:"GND",c:C.gnd,sl:"2 kΩ",note:"unteres Ende des Teilers"}],
+  place:{x:0,z:-5.6,rot:Math.PI},
+  src:{title:"Abstandssensor",descr:"Abstandsmessung mit Ultraschallsensor HC-SR04",libs:["phyphox BLE"],
+    includes:"",interval:60,
+    settings:"const int PIN_TRIG = 5;\nconst int PIN_ECHO = 18;                  // über Spannungsteiler 1 kOhm / 2 kOhm!\nconst float SCHALLGESCHWINDIGKEIT = 343.0; // m/s bei 20 °C; allgemein v = 331,5 + 0,6 * T\nconst unsigned long TIMEOUT_US = 30000;   // ca. 5 m Laufweg, danach kein Echo",
+    globals:"",
+    graphs:[{label:"Abstand",unit:"cm"}],writeVars:"abstand",
+    functions:`// Abstand in cm. Liefert NAN, wenn kein Echo zurückkommt.
+float abstandMessen() {
+  digitalWrite(PIN_TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(PIN_TRIG, HIGH);   // 10-µs-Impuls startet die Messung
+  delayMicroseconds(10);
+  digitalWrite(PIN_TRIG, LOW);
+
+  unsigned long dauer = pulseIn(PIN_ECHO, HIGH, TIMEOUT_US);   // Laufzeit in µs
+  if (dauer == 0) return NAN;
+  // Schall läuft hin und zurück: s = v * t / 2, Ergebnis in cm
+  return dauer * 1e-6 * SCHALLGESCHWINDIGKEIT / 2.0 * 100.0;
+}`,
+    setup:`  pinMode(PIN_TRIG, OUTPUT);
+  pinMode(PIN_ECHO, INPUT);
+  digitalWrite(PIN_TRIG, LOW);`,
+    loop:`  float abstand = abstandMessen();
+  if (isnan(abstand)) {
+    Serial.println("Kein Echo (Hindernis zu weit weg oder Verkabelung prüfen)");
+    return;
+  }
+  PhyphoxBLE::write(abstand);
+  Serial.print("Abstand: ");
+  Serial.print(abstand, 1);
+  Serial.println(" cm");`},
+  demo:(n)=>{const x=[],y=[];for(let i=0;i<n;i++){const t=i*0.06;x.push(t);y.push(40+12*Math.exp(-t/25)*Math.cos(2*Math.PI*t/1.6)+(Math.random()-.5)*0.4)}return [["Zeit (s)",x],["Abstand (cm)",y]]}
+},
+{
+  id:"force", name:"Kraftsensor", module:"Wägezelle 5 kg + HX711", color:"#C77A12",
+  qty:"Kraft in N",
+  principle:"<p>Auf den Aluminiumbalken sind Dehnungsmessstreifen geklebt. Wird der Balken belastet, verformt er sich minimal und ihr Widerstand ändert sich. Der HX711 verstärkt die kleine Spannung der Messbrücke und wandelt sie mit 24 Bit um.</p><p>Einsatz: Hookesches Gesetz, Reibung, Kraftstoß.</p>",
+  specs:[["Nennlast","5 kg (ca. 49 N)"],["Wandler","HX711, 24 Bit"],["Abtastrate","10 oder 80 Messungen/s"],["Schnittstelle","2-Draht (DOUT, SCK)"],["Versorgung","2,6 bis 5,5 V"],["Kalibrierung","mit bekannter Masse nötig"],["Preis","ca. 4–8 €"]],
+  wires:[
+    {s:"VCC",e:"3V3",c:C.v33},
+    {s:"GND",e:"GND2",c:C.gnd},
+    {s:"DT",e:"RX2",c:C.sig4,note:"Daten (DOUT)"},
+    {s:"SCK",e:"TX2",c:C.sig5,note:"Takt"},
+    {s:"E+",s2:"LC_R",nolab:true,c:0xd22b2b,sl:"HX711 E+",tl:"Wägezelle rot",note:"fertig angeschlossen"},
+    {s:"E-",s2:"LC_K",nolab:true,c:0x2b2b2b,sl:"HX711 E−",tl:"Wägezelle schwarz"},
+    {s:"A-",s2:"LC_W",nolab:true,c:0xeeeeee,sl:"HX711 A−",tl:"Wägezelle weiß"},
+    {s:"A+",s2:"LC_G",nolab:true,c:0x2c9b5a,sl:"HX711 A+",tl:"Wägezelle grün"}],
+  place:{x:0,z:-6.6,rot:-Math.PI/2},
+  src:{title:"Kraftsensor",descr:"Kraftmessung mit Wägezelle und HX711",libs:["phyphox BLE","HX711 (von Bogdan Necula)"],
+    includes:"#include <HX711.h>\n",interval:100,
+    usage:["'t' senden = Nullpunkt setzen (ohne Last).","'k' senden = kalibrieren: vorher KALIBRIERMASSE_G auflegen."],
+    settings:"const int PIN_DOUT = 16;\nconst int PIN_SCK  = 17;\nconst float KALIBRIERMASSE_G = 100.0;  // bekannte Masse für die Kalibrierung\nconst float ERDBESCHLEUNIGUNG = 9.81;  // m/s²",
+    globals:"HX711 waage;\nfloat kalibrierfaktor = 420.0;   // Rohwert pro Gramm; mit 'k' bestimmen und hier eintragen",
+    graphs:[{label:"Kraft",unit:"N"}],writeVars:"kraft",
+    functions:`// Befehle aus dem seriellen Monitor
+void befehleVerarbeiten() {
+  if (!Serial.available()) return;
+  char befehl = Serial.read();
+  if (befehl == 't') {
+    waage.tare(20);
+    Serial.println("Nullpunkt gesetzt.");
+  }
+  if (befehl == 'k') {
+    long roh = waage.get_value(20);          // Rohwert ohne Nullpunkt
+    kalibrierfaktor = roh / KALIBRIERMASSE_G;
+    waage.set_scale(kalibrierfaktor);
+    Serial.print("Neuer Kalibrierfaktor: ");
+    Serial.println(kalibrierfaktor, 2);
+    Serial.println("Diesen Wert oben bei kalibrierfaktor eintragen.");
+  }
+}`,
+    setup:`  waage.begin(PIN_DOUT, PIN_SCK);
+  if (!waage.wait_ready_timeout(1000)) {
+    Serial.println("HX711 antwortet nicht. DT, SCK und Versorgung prüfen.");
+  }
+  waage.set_scale(kalibrierfaktor);
+  Serial.println("Nullpunkt wird gesetzt, Wägezelle nicht belasten ...");
+  waage.tare(20);`,
+    loopPre:`  befehleVerarbeiten();`,
+    loop:`  if (!waage.is_ready()) return;
+  float masse = waage.get_units(1);                    // in Gramm
+  float kraft = masse / 1000.0 * ERDBESCHLEUNIGUNG;     // F = m * g in Newton
+  PhyphoxBLE::write(kraft);
+  Serial.print("F = ");
+  Serial.print(kraft, 3);
+  Serial.println(" N");`},
+  demo:(n)=>{const x=[],y=[];for(let i=0;i<n;i++){const t=i*0.1;x.push(t);const m=t<3?0:t<8?0.5:t<13?1.0:t<18?2.0:0.0;y.push(m*9.81+(Math.random()-.5)*0.03)}return [["Zeit (s)",x],["Kraft (N)",y]]}
+},
+{
+  id:"press", name:"Drucksensor", module:"BMP280", color:"#0F7FA6",
+  qty:"Luftdruck in hPa (dazu Temperatur und Höhe)",
+  principle:"<p>Eine dünne Membran über einer Vakuumkammer biegt sich je nach Luftdruck. Piezoresistive Elemente auf der Membran ändern dabei ihren Widerstand. Der Sensor gleicht den Wert intern mit der gemessenen Temperatur ab.</p><p>Einsatz: Luftdruck und Höhe, Gasgesetze mit Spritze, Wetterbeobachtung.</p>",
+  specs:[["Messbereich","300 bis 1100 hPa"],["Genauigkeit absolut","±1 hPa"],["Genauigkeit relativ","±0,12 hPa (ca. ±1 m Höhe)"],["Zusätzlich","Temperatur ±1 °C"],["Schnittstelle","I²C (0x76/0x77) oder SPI"],["Versorgung","1,71 bis 3,6 V (Chip); Module ohne Spannungsregler nur an 3,3 V"],["Preis","ca. 2–4 €"]],
+  wires:[
+    {s:"VCC",e:"3V3",c:C.v33,note:"nur 3,3 V!"},
+    {s:"GND",e:"GND2",c:C.gnd},
+    {s:"SCL",e:"D22",c:C.scl,note:"I²C-Takt"},
+    {s:"SDA",e:"D21",c:C.sda,note:"I²C-Daten"}],
+  place:{x:0,z:-3.4,rot:Math.PI},
+  src:{title:"Drucksensor",descr:"Luftdruck, Temperatur und Höhe mit BMP280",libs:["phyphox BLE","Adafruit BMP280 Library (installiert Adafruit Unified Sensor mit)"],
+    includes:"#include <Wire.h>\n#include <Adafruit_BMP280.h>\n",interval:100,
+    settings:"const int PIN_SDA = 21;\nconst int PIN_SCL = 22;\nconst float DRUCK_MEERESHOEHE_HPA = 1013.25;   // für die Höhenberechnung, ggf. Wetterwert eintragen",
+    globals:"Adafruit_BMP280 bmp;",
+    graphs:[{label:"Druck",unit:"hPa"},{label:"Temperatur",unit:"°C"},{label:"Hoehe",unit:"m"}],writeVars:"druck, temperatur, hoehe",
+    functions:`// (keine eigenen Hilfsfunktionen nötig)`,
+    setup:`  Wire.begin(PIN_SDA, PIN_SCL);
+  // Je nach Modul ist die Adresse 0x76 oder 0x77
+  if (!bmp.begin(0x76) && !bmp.begin(0x77)) {
+    Serial.println("BMP280 nicht gefunden. SDA, SCL und 3,3-V-Versorgung prüfen.");
+    while (true) delay(1000);
+  }
+  bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,
+                  Adafruit_BMP280::SAMPLING_X2,     // Temperatur
+                  Adafruit_BMP280::SAMPLING_X16,    // Druck
+                  Adafruit_BMP280::FILTER_X4,
+                  Adafruit_BMP280::STANDBY_MS_63);`,
+    loop:`  float druck      = bmp.readPressure() / 100.0;          // Pa -> hPa
+  float temperatur = bmp.readTemperature();
+  float hoehe      = bmp.readAltitude(DRUCK_MEERESHOEHE_HPA);
+  PhyphoxBLE::write(druck, temperatur, hoehe);
+  Serial.printf("p = %.2f hPa   T = %.2f °C   h = %.1f m\\n", druck, temperatur, hoehe);`},
+  demo:(n)=>{const x=[],y=[];for(let i=0;i<n;i++){const t=i*0.2;x.push(t);const h=t<10?0:t<40?(t-10)*0.4:12;y.push(965.3-h*0.118+(Math.random()-.5)*0.03)}return [["Zeit (s)",x],["Druck (hPa)",y]]}
+},
+{
+  id:"esp", name:"Mikrocontroller", module:"ESP32 DevKit V1", color:"#3B4256", hub:true,
+  qty:"Herzstück: liest alle Sensoren aus",
+  principle:"<p>Der ESP32 ist ein Mikrocontroller mit eingebautem WLAN und Bluetooth. Er liest die Sensoren über seine Pins aus, rechnet die Rohwerte in physikalische Größen um und sendet sie per Bluetooth Low Energy an phyphox.</p><p>Programmiert wird er in der Arduino IDE. Mit der Bibliothek „phyphox BLE“ beschreibt der ESP32 sein Experiment selbst, phyphox baut daraus automatisch die Anzeige.</p><p>Das 3D-Modell zeigt die Beschriftung der 30-Pin-Version (DOIT DevKit V1), so wie sie auf der Platine steht.</p>",
+  specs:[["Prozessor","Xtensa LX6, 2 Kerne, bis 240 MHz"],["Arbeitsspeicher","520 KB SRAM"],["Flash","4 MB (typisch)"],["Funk","WLAN 802.11 b/g/n, Bluetooth 4.2 + BLE"],["Analogeingänge","bis 18 Kanäle, 12 Bit"],["Schnittstellen","I²C, SPI, UART, PWM"],["Betriebsspannung","3,3 V (USB 5 V)"],["Preis","ca. 6–10 €"]],
+  wires:[
+    {s:"3V3",tl:"Versorgung 3,3-V-Sensoren",c:C.v33,hubRow:true},
+    {s:"VIN",tl:"5 V vom USB, z. B. HC-SR04",c:C.v5,hubRow:true},
+    {s:"GND",tl:"Masse, zwei Pins vorhanden",c:C.gnd,hubRow:true},
+    {s:"GPIO 21 / 22",tl:"I²C: SDA / SCL (INA219, BMP280)",c:C.sda,hubRow:true},
+    {s:"GPIO 34",tl:"Analogeingang Hall-Sensor",c:C.sig2,hubRow:true},
+    {s:"GPIO 4",tl:"1-Wire DS18B20",c:C.sig1,hubRow:true},
+    {s:"GPIO 5 / 18",tl:"TRIG / ECHO HC-SR04",c:C.sig3,hubRow:true},
+    {s:"GPIO 16 / 17",tl:"DT / SCK HX711",c:C.sig4,hubRow:true}],
+  src:{title:"ESP32 Test",descr:"Testprogramm: sendet eine Sinuskurve",libs:["phyphox BLE"],includes:"",interval:50,
+    settings:"const float PERIODE_S = 4.0;   // Periodendauer der Testkurve",globals:"",
+    graphs:[{label:"Testsignal",unit:"V"}],writeVars:"wert",
+    functions:"// Prüft ohne Sensor, ob Bluetooth und phyphox funktionieren.",
+    setup:"  pinMode(2, OUTPUT);   // blaue LED auf dem Board",
+    loop:`  float zeit = millis() / 1000.0;
+  float wert = sin(2 * PI * zeit / PERIODE_S);
+  digitalWrite(2, wert > 0);   // LED blinkt im Takt
+  PhyphoxBLE::write(wert);
+  Serial.println(wert, 3);`},
+  demo:null
+}
+];
+const byId = id => SENSORS.find(s=>s.id===id);
+const MEASURABLE = SENSORS.filter(s=>!s.hub);
+
+/* ================= Hilfen ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = (v,d=3) => Number.isFinite(v) ? v.toLocaleString("de-DE",{maximumFractionDigits:d}) : "–";
+let toastT;
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2800)}
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const inClaude = !!(window.claude && typeof window.claude.use==="function");
+
+/* ================= Ansichten ================= */
+let currentView="idee";
+function showView(v){
+  currentView=v;
+  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected", b.dataset.view===v));
+  document.querySelectorAll("section.view").forEach(s=>s.classList.toggle("active", s.id==="view-"+v));
+  window.scrollTo({top:0});
+  if(v==="sensoren") requestAnimationFrame(()=>{initViewer(); resizeViewer();});
+  if(v==="messen") requestAnimationFrame(()=>{drawDraft(); if(typeof renderLive==="function") renderLive();});
+  if(v==="gespeichert") renderSaved();
+}
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
+
+/* ================= Sensorliste ================= */
+let cur = SENSORS[0].id, mode="part";
+function chipHTML(s,pressed){return `<button class="chip" data-id="${s.id}" aria-pressed="${pressed}"><i style="background:${s.color}"></i>${esc(s.name)}</button>`}
+function renderStrips(){
+  $("#sensorStrip").innerHTML = SENSORS.map(s=>chipHTML(s, s.id===cur)).join("");
+  $("#ideaStrip").innerHTML = SENSORS.map(s=>chipHTML(s,false)).join("");
+}
+$("#sensorStrip").addEventListener("click",e=>{const c=e.target.closest(".chip");if(c)selectSensor(c.dataset.id)});
+$("#ideaStrip").addEventListener("click",e=>{const c=e.target.closest(".chip");if(c){selectSensor(c.dataset.id);showView("sensoren")}});
+
+function wireRows(s){
+  if(s.hub) return `<tr><th>Pin</th><td class="muted" style="font-weight:400">Verwendung</td></tr>`+s.wires.map(w=>`<tr><th><span class="dot" style="background:${hex(w.c)}"></span>${esc(w.s)}</th><td>${esc(w.tl)}</td></tr>`).join("");
+  return `<tr><th>Sensor</th><td class="muted" style="font-weight:400">verbinden mit</td></tr>`+s.wires.map(w=>{
+    const target = w.e ? "ESP32 "+espName(w.e) : w.tl;
+    return `<tr><th><span class="dot" style="background:${hex(w.c)}"></span>${esc(w.sl||w.s)}</th><td>${esc(target)}${w.note?`<span class="wire-note">${esc(w.note)}</span>`:""}</td></tr>`}).join("");
+}
+function selectSensor(id){
+  cur=id; const s=byId(id);
+  document.querySelectorAll("#sensorStrip .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.id===id));
+  $("#sName").textContent=s.name;
+  $("#sModule").textContent=s.module;
+  const q=$("#sQty"); q.textContent=s.qty; q.style.background=s.color;
+  $("#sSpec").innerHTML=s.specs.map(r=>`<tr><th>${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join("");
+  $("#sWire").innerHTML=wireRows(s);
+  $("#principle").innerHTML=s.principle;
+  $("#sCode").textContent=fullCode(s);
+  $("#sPhy").textContent=phyExcerpt(s);
+  const tag=$("#stageTag"); tag.textContent=s.module; tag.style.background=s.color;
+  $("#goMeasure").hidden=!!s.hub;
+  document.querySelector('.seg [data-mode="wired"]').hidden=!!s.hub;
+  if(s.hub && mode==="wired") setMode("part"); else rebuild();
+}
+$("#goMeasure").addEventListener("click",()=>{ $("#mSensor").value=cur; showView("messen"); });
+
+document.querySelectorAll("[data-copy]").forEach(b=>b.addEventListener("click",async()=>{
+  const el=document.getElementById(b.dataset.copy);
+  try{ await navigator.clipboard.writeText(el.textContent); toast("Kopiert"); }
+  catch(e){ const r=document.createRange(); r.selectNodeContents(el); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); toast("Markiert – jetzt kopieren"); }
+}));
+$("#dlCode").addEventListener("click",()=>{
+  const s=byId(cur); const base=safeName(s.src.title);
+  // In der Claude-Ansicht sind nur bestimmte Endungen erlaubt, daher dort .txt
+  downloadText(inClaude? base+".ino.txt" : base+".ino", fullCode(s));
+});
+
+/* ================= Darstellungsmodus ================= */
+function setMode(m){
+  mode=m;
+  document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.mode===m));
+  rebuild();
+}
+document.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+function rebuild(){
+  const s=byId(cur);
+  const notes={part:"Das Bauteil allein. Ziehen zum Drehen, Plus und Minus zum Zoomen.",
+    wired:"Jedes Kabel ist beschriftet: ESP32-Pin → Sensor-Pin. Die Farben entsprechen der Tabelle „Anschluss am ESP32“.",
+    case:""};
+  $("#viewNote").textContent=notes[mode]||"";
+  updateCaseOverlay();
+  buildModel(cur);
+}
+
+/* ================= 3D-Ansicht ================= */
+let renderer, scene, camera, modelGroup, floor, viewerReady=false;
+const threeOK=typeof THREE!=="undefined";
+let rotX=-0.55, rotY=0.6, dist=8, baseDist=8;
+const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
+let lastInteract=0;
+function initViewer(){
+  if(viewerReady) return;
+  if(!threeOK){ $("#stageFallback").style.display="flex"; return; }
+  const stage=$("#stage");
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  stage.prepend(renderer.domElement);
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(35,4/3,0.1,400);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x8899aa,0.85));
+  const d1=new THREE.DirectionalLight(0xffffff,0.75); d1.position.set(4,8,6); scene.add(d1);
+  const d2=new THREE.DirectionalLight(0xffffff,0.3); d2.position.set(-6,3,-4); scene.add(d2);
+  floor=new THREE.Mesh(new THREE.CircleGeometry(1,64),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.06}));
+  floor.rotation.x=-Math.PI/2; scene.add(floor);
+  modelGroup=new THREE.Group(); scene.add(modelGroup);
+  viewerReady=true;
+  let drag=null;
+  stage.addEventListener("pointerdown",e=>{if(e.target.closest(".stage-btns,.case-ov"))return;drag={x:e.clientX,y:e.clientY};stage.setPointerCapture(e.pointerId);lastInteract=performance.now()});
+  stage.addEventListener("pointermove",e=>{if(!drag)return;rotY+=(e.clientX-drag.x)*0.01;rotX+=(e.clientY-drag.y)*0.01;rotX=Math.max(-1.5,Math.min(1.2,rotX));drag={x:e.clientX,y:e.clientY};lastInteract=performance.now()});
+  stage.addEventListener("pointerup",()=>drag=null);
+  stage.addEventListener("pointercancel",()=>drag=null);
+  stage.addEventListener("wheel",e=>{e.preventDefault();dist=Math.max(baseDist*0.3,Math.min(baseDist*2.2,dist*(1+Math.sign(e.deltaY)*0.08)));lastInteract=performance.now()},{passive:false});
+  $("#zoomIn").addEventListener("click",()=>{dist=Math.max(baseDist*0.3,dist*0.85);lastInteract=performance.now()});
+  $("#zoomOut").addEventListener("click",()=>{dist=Math.min(baseDist*2.2,dist*1.15);lastInteract=performance.now()});
+  $("#resetView").addEventListener("click",()=>{resetCam()});
+  new ResizeObserver(resizeViewer).observe(stage);
+  buildModel(cur);
+  (function loop(t){
+    requestAnimationFrame(loop);
+    if(currentView!=="sensoren") return;
+    if(!reduceMotion && mode!=="wired" && t-lastInteract>3000) rotY+=0.004;
+    camera.position.set(dist*Math.cos(rotX)*Math.sin(rotY), -dist*Math.sin(rotX), dist*Math.cos(rotX)*Math.cos(rotY));
+    camera.lookAt(0,0,0);
+    renderer.render(scene,camera);
+  })(0);
+}
+function resetCam(){ if(mode==="wired"){rotX=-1.0;rotY=0.25}else{rotX=-0.55;rotY=0.6} dist=baseDist; lastInteract=performance.now(); }
+function resizeViewer(){
+  if(!viewerReady) return;
+  const st=$("#stage"); const w=st.clientWidth, h=st.clientHeight; if(!w||!h) return;
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const M = c => new THREE.MeshStandardMaterial({color:c,roughness:0.55,metalness:0.1});
+const MET = c => new THREE.MeshStandardMaterial({color:c,roughness:0.3,metalness:0.85});
+function box(g,w,h,d,mat,x=0,y=0,z=0){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);g.add(m);return m}
+function cyl(g,r,h,mat,x=0,y=0,z=0,seg=28){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg),mat);m.position.set(x,y,z);g.add(m);return m}
+function chip(g,w,d,x,z,y=0.06){box(g,w,0.1,d,M(0x151515),x,y+0.05,z)}
+function smd(g,x,z,c=0xb08a5a){box(g,0.16,0.07,0.08,M(c),x,0.095,z)}
+// Stiftleiste nach oben; speichert die Spitze jedes Pins in P
+function header(g,names,start,fixed,axis,P,off){
+  const pl=M(0x111111), gold=MET(0xd4af37);
+  names.forEach((n,i)=>{
+    const x=axis==="x"?start+i*0.254:fixed, z=axis==="x"?fixed:start+i*0.254;
+    box(g,0.24,0.22,0.24,pl,x,0.17,z); box(g,0.06,0.6,0.06,gold,x,0.36,z);
+    const p=V(x,0.66,z); if(off) p.add(off); P[n]=p;
+  });
+}
+// Widerstand zwischen zwei Punkten gleicher Höhe (entlang x)
+function resistor(g,p1,p2,bands){
+  const lead=MET(0xb8b8b8); const y=p1.y+0.25; const len=Math.abs(p2.x-p1.x); const cx=(p1.x+p2.x)/2;
+  [p1,p2].forEach(p=>cyl(g,0.02,0.25,lead,p.x,p.y+0.125,p.z,8));
+  const l=cyl(g,0.02,len,lead,cx,y,p1.z,8); l.rotation.z=Math.PI/2;
+  const bl=Math.min(0.62,len*0.7);
+  const body=cyl(g,0.085,bl,M(0xd9c7a0),cx,y,p1.z,16); body.rotation.z=Math.PI/2;
+  bands.forEach((c,i)=>{const b=cyl(g,0.09,0.05,M(c),cx-bl/2+0.1+i*(bl-0.2)/(bands.length-1),y,p1.z,16);b.rotation.z=Math.PI/2});
+}
+function labelSprite(text,color){
+  const c=document.createElement("canvas"); const ctx=c.getContext("2d");
+  const fs=44; ctx.font=`bold ${fs}px Arial`; const w=Math.ceil(ctx.measureText(text).width)+40;
+  c.width=w; c.height=fs+28;
+  const light=[0xf0c020,0xeeeeee,0xff7a00,0xff8c00].includes(color);
+  ctx.fillStyle=hex(color); const r=18;
+  ctx.beginPath(); ctx.moveTo(r,0); ctx.arcTo(w,0,w,c.height,r); ctx.arcTo(w,c.height,0,c.height,r); ctx.arcTo(0,c.height,0,0,r); ctx.arcTo(0,0,w,0,r); ctx.fill();
+  ctx.lineWidth=4; ctx.strokeStyle="rgba(255,255,255,.85)"; ctx.stroke();
+  ctx.font=`bold ${fs}px Arial`; ctx.fillStyle=light?"#111":"#fff"; ctx.textBaseline="middle"; ctx.fillText(text,20,c.height/2+2);
+  const tex=new THREE.CanvasTexture(c); tex.anisotropy=4;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
+  const h=0.4; sp.scale.set(h*c.width/c.height,h,1); sp.renderOrder=10;
+  return sp;
+}
+
+/* ---------- Bauteile ---------- */
+let silk=null;
+function silkTexture(){
+  if(silk) return silk;
+  const c=document.createElement("canvas"); c.width=1040; c.height=560; const x=c.getContext("2d");
+  x.fillStyle="#1b1b1f"; x.fillRect(0,0,1040,560);
+  const px=X=>(X+2.6)*200, pz=Z=>(Z+1.4)*200;
+  x.textAlign="center"; x.textBaseline="middle";
+  [[ESP_A,1.27],[ESP_B,-1.27]].forEach(([arr,z])=>arr.forEach((n,i)=>{
+    const X=px(-1.55+i*0.254), Y=pz(z);
+    x.fillStyle="#d4af37"; x.beginPath(); x.arc(X,Y,15,0,7); x.fill();
+    x.fillStyle="#111"; x.beginPath(); x.arc(X,Y,7,0,7); x.fill();
+    x.fillStyle="#fff"; x.font="bold 19px Arial";
+    x.fillText(n==="GND2"?"GND":n, X, z>0?Y-36:Y+36);
+  }));
+  x.font="bold 16px Arial"; x.fillStyle="#fff";
+  x.fillText("EN",px(0.55),pz(-0.3)); x.fillText("BOOT",px(0.55),pz(0.3));
+  x.font="bold 26px Arial"; x.fillText("ESP32",px(1.95),pz(-0.55));
+  silk=new THREE.CanvasTexture(c); silk.anisotropy=8;
+  return silk;
+}
+function buildESP(){
+  const g=new THREE.Group(), P={};
+  const side=M(0x1b1b1f), top=new THREE.MeshStandardMaterial({map:silkTexture(),roughness:0.6});
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(5.2,0.16,2.8),[side,side,top,side,side,side]));
+  box(g,1.8,0.12,1.75,MET(0xbfc5cc),-0.9,0.14,0);
+  box(g,0.8,0.03,1.75,M(0x163a7a),-2.2,0.095,0);
+  for(let i=0;i<4;i++) box(g,0.07,0.02,1.4,MET(0xd4af37),-2.5+i*0.17,0.115,0);
+  box(g,0.55,0.28,0.75,MET(0xd0d4d8),2.45,0.2,0);
+  [-0.6,0.6].forEach(z=>{box(g,0.32,0.16,0.32,MET(0xc0c0c0),0.55,0.16,z);cyl(g,0.08,0.08,M(0x222222),0.55,0.27,z,12)});
+  chip(g,0.5,0.5,1.35,0,0.08); smd(g,1.0,0.65); smd(g,1.0,-0.65); smd(g,1.75,0.35,0x2d2d2d);
+  box(g,0.1,0.05,0.1,M(0x2f6fe0),1.95,0.11,0.6); box(g,0.1,0.05,0.1,M(0xff3030),1.95,0.11,-0.85);
+  const gold=MET(0xd4af37);
+  [[ESP_A,1.27],[ESP_B,-1.27]].forEach(([arr,z])=>arr.forEach((n,i)=>{
+    const x=-1.55+i*0.254; box(g,0.06,0.6,0.06,gold,x,-0.38,z); box(g,0.24,0.2,0.24,M(0x111111),x,-0.18,z);
+    P[n]=V(x,0.09,z);
+  }));
+  return {g,P};
+}
+const BUILD={
+  temp(){
+    const g=new THREE.Group(),P={}; const steel=MET(0xc7ccd1);
+    const probe=cyl(g,0.2,1.6,steel,-1.6,0.2,0); probe.rotation.z=Math.PI/2;
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(0.2,24,16,0,Math.PI*2,0,Math.PI/2),steel); tip.rotation.z=Math.PI/2; tip.position.set(-2.4,0.2,0); g.add(tip);
+    const crimp=cyl(g,0.23,0.25,steel,-0.75,0.2,0); crimp.rotation.z=Math.PI/2;
+    const curve=new THREE.CatmullRomCurve3([V(-0.65,0.2,0),V(0.4,0.2,0.3),V(1.2,0.2,-0.4),V(1.75,0.3,0)]);
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve,40,0.11,12),M(0x1a1a1a)));
+    // Adapterplatine mit Schraubklemme und 4,7-kOhm-Widerstand
+    box(g,1.6,0.12,1.3,M(0x1e6b3a),2.8,0,0);
+    box(g,0.45,0.5,1.0,M(0x2a7bd6),2.25,0.31,0);
+    [-0.3,0,0.3].forEach(z=>cyl(g,0.1,0.06,MET(0xbbbbbb),2.25,0.59,z,14));
+    [[0xd22b2b,-0.3],[0xf2c230,0],[0x222222,0.3]].forEach(([c,z])=>{const w=cyl(g,0.04,0.3,M(c),1.9,0.3,z,10);w.rotation.z=Math.PI/2});
+    resistor(g,V(2.65,0.06,-0.45),V(3.25,0.06,-0.45),[0xf2c230,0x7b3fb8,0xd22b2b,0xd4af37]);
+    header(g,["VCC","DAT","GND"],-0.254,3.45,"z",P);
+    return {g,P};
+  },
+  mag(){
+    const g=new THREE.Group(),P={};
+    box(g,1.8,0.12,1.3,M(0x1d4f91));
+    const half=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.42,24,1,false,0,Math.PI),M(0x161616));
+    half.rotation.x=Math.PI/2; half.position.set(0,0.42,-0.25); g.add(half);
+    box(g,0.48,0.42,0.02,M(0x161616),0,0.42,-0.25);
+    for(let i=-1;i<=1;i++) box(g,0.04,0.35,0.04,MET(0xd8d8d8),i*0.13,0.2,-0.25);
+    smd(g,-0.55,0.1); smd(g,0.55,0.1,0x2d2d2d); box(g,0.1,0.05,0.1,M(0xff3030),0.6,0.09,-0.45);
+    header(g,["VCC","GND","OUT"],-0.254,0.4,"x",P);
+    box(g,1.3,0.35,0.35,M(0xd23b3b),-2.25,0.15,-0.25); box(g,1.3,0.35,0.35,M(0x2c9b5a),-3.55,0.15,-0.25);
+    for(let k=1;k<=3;k++){const pts=[];for(let a=0;a<=Math.PI;a+=0.08)pts.push(V(-2.9+Math.cos(a)*(0.9+k*0.45),0.15+Math.sin(a)*(0.35+k*0.35),-0.25));
+      g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x8899bb})));}
+    return {g,P};
+  },
+  ui(){
+    const g=new THREE.Group(),P={};
+    box(g,2.6,0.12,2.0,M(0x5b2a86));
+    box(g,0.7,0.14,0.35,M(0xeeeeee),-0.2,0.13,0.0);
+    box(g,0.26,0.15,0.36,MET(0xc0c0c0),-0.6,0.13,0.0);box(g,0.26,0.15,0.36,MET(0xc0c0c0),0.2,0.13,0.0);
+    chip(g,0.4,0.4,0.75,-0.35); smd(g,0.35,-0.45); smd(g,-0.1,-0.45); smd(g,0.95,0.35,0x2d2d2d);
+    box(g,0.8,0.55,0.6,M(0x2a7bd6),-0.15,0.33,0.7);
+    cyl(g,0.13,0.06,MET(0xbbbbbb),-0.35,0.63,0.7,16); cyl(g,0.13,0.06,MET(0xbbbbbb),0.05,0.63,0.7,16);
+    P["T-"]=V(-0.35,0.66,0.7); P["T+"]=V(0.05,0.66,0.7);
+    header(g,["VCC","GND","SCL","SDA","VIN-","VIN+"],-0.635,-0.85,"x",P);
+    // Batterie
+    box(g,1.6,1.0,2.2,M(0x2a2a2a),-1.6,0.5,3.2); box(g,1.62,0.3,2.22,M(0xd4af37),-1.6,0.55,3.2);
+    cyl(g,0.13,0.12,MET(0xc0c0c0),-1.95,1.06,2.35,16); cyl(g,0.16,0.12,MET(0xc0c0c0),-1.25,1.06,2.35,6);
+    P["BAT+"]=V(-1.95,1.12,2.35); P["BAT-"]=V(-1.25,1.12,2.35);
+    // Lampe
+    cyl(g,0.45,0.3,M(0x8a8f99),1.5,0.15,3.0,24);
+    const glass=new THREE.Mesh(new THREE.SphereGeometry(0.42,24,16),new THREE.MeshStandardMaterial({color:0xfff3b0,transparent:true,opacity:0.55,roughness:0.1}));
+    glass.position.set(1.5,0.72,3.0); g.add(glass);
+    box(g,0.14,0.14,0.14,MET(0xc0c0c0),1.0,0.2,3.0); box(g,0.14,0.14,0.14,MET(0xc0c0c0),2.0,0.2,3.0);
+    P.L1=V(1.0,0.28,3.0); P.L2=V(2.0,0.28,3.0);
+    return {g,P};
+  },
+  dist(){
+    const g=new THREE.Group(),P={};
+    box(g,4.5,0.12,2.0,M(0x1d4f91));
+    [-1.3,1.3].forEach(x=>{
+      cyl(g,0.82,1.15,MET(0xc9ced3),x,0.64,0.05,40); cyl(g,0.68,0.02,M(0x2b2b2b),x,1.22,0.05,40);
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(0.75,0.05,8,40),MET(0xaab0b6));ring.rotation.x=Math.PI/2;ring.position.set(x,1.22,0.05);g.add(ring);});
+    box(g,0.5,0.18,0.22,MET(0xd0d0d0),0,0.15,-0.6);
+    chip(g,0.45,0.45,0,0.4); smd(g,-0.4,-0.5); smd(g,0.4,-0.5);
+    header(g,["VCC","TRIG","ECHO","GND"],-0.381,-0.95,"x",P);
+    // Steckbrett mit Spannungsteiler
+    box(g,2.6,0.35,1.7,M(0xf2f2ee),2.8,0.115,-2.45);
+    const strip=new THREE.MeshBasicMaterial({color:0xb9c0c7});
+    [2.0,2.8,3.6].forEach(x=>{box(g,0.06,0.01,1.5,strip,x,0.295,-2.45);for(let k=0;k<5;k++)box(g,0.1,0.012,0.1,M(0x333333),x,0.297,-1.85-k*0.3)});
+    const y=0.3;
+    resistor(g,V(2.0,y,-2.45),V(2.8,y,-2.45),[0x6b3a1e,0x111111,0xd22b2b,0xd4af37]); // 1 kOhm
+    resistor(g,V(2.8,y,-2.95),V(3.6,y,-2.95),[0xd22b2b,0x111111,0xd22b2b,0xd4af37]); // 2 kOhm
+    P.BB_E=V(2.0,y,-1.85); P.BB_N=V(2.8,y,-1.85); P.BB_G=V(3.6,y,-1.85);
+    return {g,P};
+  },
+  force(){
+    const g=new THREE.Group(),P={};
+    const al=new THREE.MeshStandardMaterial({color:0xb9c0c7,roughness:0.45,metalness:0.6});
+    box(g,4.4,0.6,0.6,al,-0.6,0.3,0);
+    [-0.25,0.35].forEach(x=>{const h=cyl(g,0.22,0.62,M(0x2a2f36),x-0.6,0.3,0,24);h.rotation.x=Math.PI/2});
+    box(g,0.6,0.62,0.2,M(0x2a2f36),-0.55,0.3,0);
+    box(g,0.55,0.02,0.45,M(0xf3f0e6),-0.6,0.61,0);
+    [-2.4,-1.95,1.2,0.75].forEach(x=>cyl(g,0.09,0.62,M(0x333333),x,0.3,0,12));
+    const hx=new THREE.Group(); hx.position.set(2.8,0,1.3);
+    box(hx,1.4,0.12,1.0,M(0x1e6b3a)); chip(hx,0.45,0.35,0,0); smd(hx,-0.2,0.35); smd(hx,0.2,-0.35);
+    header(hx,["E+","E-","A-","A+"],-0.381,-0.55,"z",P,hx.position);
+    header(hx,["GND","DT","SCK","VCC"],-0.381,0.55,"z",P,hx.position);
+    g.add(hx);
+    // Kabelenden der Wägezelle
+    [["LC_R",-0.12],["LC_K",-0.04],["LC_W",0.04],["LC_G",0.12]].forEach(([n,z])=>P[n]=V(-0.3,0.62,z));
+    return {g,P};
+  },
+  press(){
+    const g=new THREE.Group(),P={};
+    box(g,1.5,0.12,1.15,M(0x5b2a86));
+    box(g,0.32,0.12,0.26,MET(0xd8dde2),0,0.12,0.2);
+    cyl(g,0.03,0.02,M(0x222222),0.08,0.19,0.17,10);
+    smd(g,-0.45,0.25); smd(g,0.45,0.25); smd(g,-0.45,0.0,0x2d2d2d);
+    header(g,["VCC","GND","SCL","SDA","CSB","SDO"],-0.635,-0.4,"x",P);
+    return {g,P};
+  }
+};
+
+/* ---------- Kabel ---------- */
+function addWire(root,a,b,color,i,text,low,nolab){
+  const d=a.distanceTo(b);
+  const lift=low?0.25:0.7+i*0.18;
+  const A=a.clone().add(V(0,lift,0)), B=b.clone().add(V(0,lift,0));
+  const mid=A.clone().add(B).multiplyScalar(0.5); mid.y+=low?0.15:0.3+d*0.1;
+  const curve=new THREE.CatmullRomCurve3([a,A,mid,B,b]);
+  root.add(new THREE.Mesh(new THREE.TubeGeometry(curve,64,0.045,8),M(color)));
+  [a,b].forEach(p=>box(root,0.2,0.4,0.2,M(0x1c1c1c),p.x,p.y+0.2,p.z));
+  if(nolab) return;
+  const lab=labelSprite(text,color); const t=low?0.5:[0.5,0.35,0.65,0.42,0.58][i%5]; lab.position.copy(curve.getPoint(t)).add(V(0,0.3,0)); root.add(lab);
+}
+function buildWired(s){
+  const root=new THREE.Group();
+  const esp=buildESP(); root.add(esp.g);
+  const sen=BUILD[s.id](); sen.g.position.set(s.place.x,0,s.place.z); sen.g.rotation.y=s.place.rot; root.add(sen.g);
+  root.updateMatrixWorld(true);
+  const W=(o,k)=>o.P[k].clone().applyMatrix4(o.g.matrixWorld);
+  // Wägezelle: Kabel sind fest angeschlossen, als dünne Leitungen zeichnen
+  s.wires.forEach((w,i)=>{
+    if(w.e){ addWire(root,W(esp,w.e),W(sen,w.s),w.c,i,`${espName(w.e)} → ${w.sl||w.s}`,false); }
+    else { addWire(root,W(sen,w.s2),W(sen,w.s),w.c,i,`${w.sl||w.s} → ${w.tl}`,true,w.nolab); }
+  });
+  return root;
+}
+
+/* ---------- Gehäuse (STL) ---------- */
+const caseGeo={};
+function caseKey(id){return "wseminar-gehaeuse-"+id}
+function parseSTL(buf){
+  const dv=new DataView(buf);
+  if(buf.byteLength>=84){
+    const n=dv.getUint32(80,true);
+    if(n>0 && 84+n*50===buf.byteLength){
+      const pos=new Float32Array(n*9);
+      for(let i=0;i<n;i++){const o=84+i*50+12;for(let k=0;k<9;k++)pos[i*9+k]=dv.getFloat32(o+k*4,true)}
+      return pos;
+    }
+  }
+  const txt=new TextDecoder().decode(buf);
+  const re=/vertex\s+([-+\d.eE]+)\s+([-+\d.eE]+)\s+([-+\d.eE]+)/g; const arr=[]; let m;
+  while((m=re.exec(txt))) arr.push(+m[1],+m[2],+m[3]);
+  if(arr.length<9) throw new Error("Keine Dreiecke gefunden. Ist das eine STL-Datei?");
+  return new Float32Array(arr);
+}
+function geoFromPositions(pos){
+  const geo=new THREE.BufferGeometry(); geo.setAttribute("position",new THREE.BufferAttribute(pos,3)); geo.computeVertexNormals(); return geo;
+}
+function loadStoredCase(id){
+  if(caseGeo[id]!==undefined) return caseGeo[id];
+  caseGeo[id]=null;
+  try{const b64=localStorage.getItem(caseKey(id)); if(b64){const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);caseGeo[id]=geoFromPositions(parseSTL(u.buffer))}}catch(e){}
+  return caseGeo[id];
+}
+function updateCaseOverlay(){
+  const ov=$("#caseOv");
+  if(mode!=="case"){ov.classList.remove("show","compact");return}
+  const has=threeOK && !!loadStoredCase(cur);
+  ov.classList.add("show"); ov.classList.toggle("compact",has);
+  $("#caseRemove").hidden=!has;
+  $("#stlLabel").textContent=has?"Andere STL laden":"STL-Datei laden";
+  $("#caseMsg").textContent=`Für ${byId(cur).name} ist noch kein Gehäuse hinterlegt. Lade die STL-Datei eures Gehäuses (z. B. aus dem 3D-Druck), dann erscheint es hier.`;
+  $("#viewNote").textContent=has?"Euer Gehäuse, eingelesen aus der STL-Datei (Maße in mm).":"Gehäuse werden in diesem Browser gespeichert. Sehr große Dateien bleiben nur bis zum Schließen der Seite.";
+}
+$("#stlIn").addEventListener("change",e=>{
+  const f=e.target.files[0]; if(!f) return; e.target.value="";
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const pos=parseSTL(r.result); caseGeo[cur]=geoFromPositions(pos);
+      let stored=false;
+      try{const u=new Uint8Array(r.result);let bin="";for(let i=0;i<u.length;i+=0x8000)bin+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));localStorage.setItem(caseKey(cur),btoa(bin));stored=true}catch(err){}
+      toast(stored?"Gehäuse gespeichert":"Gehäuse geladen, zu groß zum dauerhaften Speichern");
+      updateCaseOverlay(); buildModel(cur);
+    }catch(err){toast(err.message||"Die Datei konnte nicht gelesen werden")}
+  };
+  r.readAsArrayBuffer(f);
+});
+$("#caseRemove").addEventListener("click",()=>{
+  if(!confirm("Gehäuse für diesen Sensor entfernen?")) return;
+  try{localStorage.removeItem(caseKey(cur))}catch(e){}
+  caseGeo[cur]=null; updateCaseOverlay(); buildModel(cur); toast("Gehäuse entfernt");
+});
+
+/* ---------- Szene aufbauen ---------- */
+function disposeTree(o){o.traverse(n=>{if(n.geometry&&!Object.values(caseGeo).includes(n.geometry))n.geometry.dispose();if(n.material){(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{if(m.map&&m.map!==silk)m.map.dispose();m.dispose()})}})}
+function buildModel(id){
+  if(!viewerReady) return;
+  while(modelGroup.children.length){const c=modelGroup.children.pop();disposeTree(c)}
+  const s=byId(id); let g;
+  if(mode==="wired" && !s.hub){ g=buildWired(s); }
+  else if(mode==="case"){
+    g=new THREE.Group(); const geo=loadStoredCase(id);
+    if(geo){const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:new THREE.Color(s.color).lerp(new THREE.Color(0xffffff),0.35),roughness:0.6,metalness:0.05,side:THREE.DoubleSide}));
+      m.rotation.x=-Math.PI/2; m.scale.setScalar(0.1); g.add(m);}
+  }
+  else { g = id==="esp" ? buildESP().g : BUILD[id]().g; }
+  if(!g.children.length){floor.visible=false;return}
+  floor.visible=true;
+  const bb=new THREE.Box3().setFromObject(g); const c=bb.getCenter(new THREE.Vector3()); const sz=bb.getSize(new THREE.Vector3());
+  g.position.sub(c); modelGroup.add(g);
+  const r=Math.max(sz.x,sz.y,sz.z);
+  baseDist=mode==="wired"&&!s.hub? r*1.5+1.0 : r*1.75+1.5;
+  floor.scale.setScalar(Math.max(sz.x,sz.z)*0.75); floor.position.y=-sz.y/2-0.02;
+  resetCam();
+}
+
+/* ================= Speicher ================= */
+const KEY="wseminar-sensor-messungen-v1";
+let memStore=[];
+function loadStore(){try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):memStore}catch(e){return memStore}}
+function saveStore(list){memStore=list;try{localStorage.setItem(KEY,JSON.stringify(list));return true}catch(e){return false}}
+function updateCount(){const n=loadStore().length;$("#savedCount").textContent=n?`(${n})`:""}
+
+/* ================= Herunterladen ================= */
+let dlPromise=null;
+if(inClaude){ try{dlPromise=window.claude.use("downloads")}catch(e){dlPromise=Promise.resolve(null)} }
+async function downloadText(filename,text){ return downloadFile(filename,text,"text/plain;charset=utf-8"); }
+async function downloadFile(filename,data,mime){
+  const dl = dlPromise ? await dlPromise.catch(()=>null) : null;
+  if(dl){
+    try{ await dl.save({filename,data}); toast("Gespeichert: "+filename); }
+    catch(e){
+      if(e && e.code==="declined") toast("Herunterladen abgebrochen");
+      else if(e && e.code==="rate_limited") toast("Bitte kurz warten und erneut versuchen");
+      else if(e && e.code==="extension_not_enabled") toast("Dieses Dateiformat ist hier nicht verfügbar");
+      else toast("Herunterladen ist hier nicht möglich");
+    }
+    return;
+  }
+  if(inClaude){ toast("Herunterladen ist in dieser Ansicht nicht verfügbar"); return; }
+  const blob=new Blob([data],{type:mime||"application/octet-stream"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+  toast("Gespeichert: "+filename);
+}
+function safeName(s){return (s||"messung").replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/Ä/g,"Ae").replace(/Ö/g,"Oe").replace(/Ü/g,"Ue").replace(/ß/g,"ss").normalize("NFKD").replace(/[^\w\-]+/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"").slice(0,60)||"messung"}
+function measToText(m){
+  const s=byId(m.sensorId);
+  const head=[
+    `# Messung: ${m.name}`,
+    `# Sensor: ${s?s.name+" ("+s.module+")":m.sensorId}`,
+    `# Datum: ${new Date(m.created).toLocaleString("de-DE")}`,
+    `# Quelle: ${m.source}`,
+    m.note?`# Notiz: ${m.note}`:null,
+    `# Werte: ${m.columns[0].values.length} Zeilen, Tabulator-getrennt, Dezimalpunkt`,
+    ""
+  ].filter(x=>x!==null);
+  const lines=[m.columns.map(c=>c.label).join("\t")];
+  const n=Math.max(...m.columns.map(c=>c.values.length));
+  for(let i=0;i<n;i++) lines.push(m.columns.map(c=>{const v=c.values[i];return Number.isFinite(v)?String(+v.toPrecision(10)):""}).join("\t"));
+  return head.join("\n")+lines.join("\n")+"\n";
+}
+
+
+/* ================= Excel / LibreOffice (.xlsx) ================= */
+const XLSX_SRC = window.XLSX_SRC || "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+let xlsxPromise=null;
+function loadXLSX(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  if(!xlsxPromise) xlsxPromise=new Promise((res,rej)=>{
+    const sc=document.createElement("script"); sc.src=XLSX_SRC;
+    sc.onload=()=>window.XLSX?res(window.XLSX):rej(new Error("x"));
+    sc.onerror=()=>{xlsxPromise=null;rej(new Error("x"))};
+    document.head.appendChild(sc);
+  });
+  return xlsxPromise;
+}
+function sheetName(name,used){
+  let base=(name||"Messung").replace(/[\[\]:*?\/\\]/g," ").trim().slice(0,28)||"Messung";
+  let n=base,i=2; while(used.has(n.toLowerCase())){n=base.slice(0,26)+" "+i;i++}
+  used.add(n.toLowerCase()); return n;
+}
+function measSheet(X,m){
+  const s=byId(m.sensorId);
+  const rows=[["Messung",m.name],["Sensor",s?s.name+" ("+s.module+")":""],["Datum",new Date(m.created).toLocaleString("de-DE")],["Quelle",m.source]];
+  if(m.note) rows.push(["Notiz",m.note]);
+  rows.push([]);
+  rows.push(m.columns.map(c=>c.label));
+  const n=Math.max(...m.columns.map(c=>c.values.length));
+  for(let i=0;i<n;i++) rows.push(m.columns.map(c=>Number.isFinite(c.values[i])?+c.values[i].toPrecision(10):null));
+  const ws=X.utils.aoa_to_sheet(rows);
+  ws["!cols"]=m.columns.map((c,i)=>({wch:Math.max(i===0?12:14,c.label.length+2, i===1?24:0)}));
+  if(ws["!cols"].length<2) ws["!cols"].push({wch:24});
+  return ws;
+}
+async function downloadXlsx(list,filename){
+  let X; try{ X=await loadXLSX(); }catch(e){ toast("Excel-Export konnte nicht geladen werden. Internetverbindung prüfen."); return; }
+  const wb=X.utils.book_new(); const used=new Set(list.length>1?["übersicht"]:[]);
+  if(list.length>1){
+    const ov=[["Messung","Sensor","Datum","Werte","Quelle","Notiz","Tabellenblatt"]];
+    const names=list.map(m=>sheetName(m.name,used));
+    list.forEach((m,i)=>{const s=byId(m.sensorId);ov.push([m.name,s?s.name:"",new Date(m.created).toLocaleString("de-DE"),m.columns[0].values.length,m.source,m.note||"",names[i]])});
+    const ws=X.utils.aoa_to_sheet(ov); ws["!cols"]=[{wch:30},{wch:26},{wch:20},{wch:8},{wch:28},{wch:30},{wch:24}];
+    X.utils.book_append_sheet(wb,ws,"Übersicht");
+    list.forEach((m,i)=>X.utils.book_append_sheet(wb,measSheet(X,m),names[i]));
+  } else {
+    X.utils.book_append_sheet(wb,measSheet(X,list[0]),sheetName(list[0].name,used));
+  }
+  const buf=X.write(wb,{bookType:"xlsx",type:"array"});
+  await downloadFile(filename,new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+}
+
+/* ================= Diagramm ================= */
+function drawChart(canvas,xs,ys,color,xl,yl,mini){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  const w=canvas.clientWidth, h=canvas.clientHeight; if(!w||!h) return;
+  canvas.width=w*dpr; canvas.height=h*dpr;
+  const ctx=canvas.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+  const pts=[]; for(let i=0;i<Math.min(xs.length,ys.length);i++) if(Number.isFinite(xs[i])&&Number.isFinite(ys[i])) pts.push([xs[i],ys[i]]);
+  if(pts.length<2) return;
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  pts.forEach(([x,y])=>{x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)});
+  if(y1===y0){y1+=1;y0-=1} if(x1===x0){x1+=1}
+  const pad=(y1-y0)*0.08; y0-=pad; y1+=pad;
+  const L=mini?4:58, R=mini?4:14, T=mini?4:14, B=mini?4:40;
+  const X=x=>L+(x-x0)/(x1-x0)*(w-L-R), Y=y=>h-B-(y-y0)/(y1-y0)*(h-T-B);
+  const ink=cssVar("--ink-soft"), line=cssVar("--line");
+  if(!mini){
+    ctx.font="12px "+cssVar("--font-body"); ctx.fillStyle=ink; ctx.strokeStyle=line; ctx.lineWidth=1;
+    const ticks=(a,b,n)=>{const step=Math.pow(10,Math.floor(Math.log10((b-a)/n)));const err=(b-a)/n/step;const s=step*(err>=7.5?10:err>=3.5?5:err>=1.5?2:1);const out=[];for(let v=Math.ceil(a/s)*s;v<=b+1e-9;v+=s)out.push(+v.toPrecision(12));return out};
+    ticks(y0,y1,5).forEach(v=>{const y=Y(v);ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(w-R,y);ctx.stroke();ctx.textAlign="right";ctx.textBaseline="middle";ctx.fillText(fmt(v,3),L-6,y)});
+    ticks(x0,x1,Math.max(3,Math.floor(w/90))).forEach(v=>{const x=X(v);ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,h-B);ctx.stroke();ctx.textAlign="center";ctx.textBaseline="top";ctx.fillText(fmt(v,2),x,h-B+6)});
+    ctx.textAlign="right";ctx.textBaseline="bottom";ctx.fillText(xl||"",w-R,h-2);
+    ctx.save();ctx.translate(12,T);ctx.rotate(-Math.PI/2);ctx.textAlign="right";ctx.textBaseline="top";ctx.fillText(yl||"",0,0);ctx.restore();
+  }
+  ctx.strokeStyle=color; ctx.lineWidth=mini?1.5:2; ctx.lineJoin="round"; ctx.beginPath();
+  const step=Math.max(1,Math.floor(pts.length/(w*2)));
+  for(let i=0;i<pts.length;i+=step){const [x,y]=pts[i]; i?ctx.lineTo(X(x),Y(y)):ctx.moveTo(X(x),Y(y))}
+  ctx.stroke();
+}
+function stats(vals){const v=vals.filter(Number.isFinite);if(!v.length)return null;let mn=Infinity,mx=-Infinity,s=0;v.forEach(x=>{mn=Math.min(mn,x);mx=Math.max(mx,x);s+=x});return{n:v.length,min:mn,max:mx,mean:s/v.length}}
+function statHTML(m,yi){const s=stats(m.columns[yi].values);const xs=stats(m.columns[0].values);if(!s)return"";return `<span><b>${s.n}</b> Werte</span><span>Dauer <b>${fmt(xs.max-xs.min,2)}</b></span><span>Min <b>${fmt(s.min)}</b></span><span>Max <b>${fmt(s.max)}</b></span><span>Mittel <b>${fmt(s.mean)}</b></span>`}
+
+/* ================= phyphox-Import ================= */
+function parseExport(text){
+  text=text.replace(/^\uFEFF/,"").trim();
+  if(!text) throw new Error("Die Datei ist leer.");
+  const rows=text.split(/\r?\n/).filter(l=>l.trim() && !l.trim().startsWith("#"));
+  if(rows.length<2) throw new Error("Es wurden keine Messwerte gefunden.");
+  const head=rows[0];
+  const cnt=d=>(head.match(new RegExp(d==="\t"?"\t":"\\"+d,"g"))||[]).length;
+  let delim=["\t",";",","].sort((a,b)=>cnt(b)-cnt(a))[0];
+  if(cnt(delim)===0) delim=/\s+/;
+  const split=l=>{ if(delim instanceof RegExp) return l.trim().split(delim);
+    const out=[];let cur="",q=false;for(const ch of l){if(ch==='"'){q=!q;continue}if(ch===delim&&!q){out.push(cur);cur="";continue}cur+=ch}out.push(cur);return out.map(s=>s.trim())};
+  const decComma = delim===";" || delim==="\t" ? rows.slice(1,6).some(r=>/\d,\d/.test(r)) : false;
+  const num=s=>{if(s===undefined)return NaN;s=s.replace(/"/g,"").trim();if(decComma)s=s.replace(/\./g,"").replace(",",".");return s===""?NaN:Number(s)};
+  let labels=split(head);
+  let start=1;
+  if(labels.every(l=>Number.isFinite(num(l)))){ labels=labels.map((_,i)=>i?`Wert ${i}`:"Zeit (s)"); start=0; }
+  const cols=labels.map(l=>({label:l.replace(/"/g,"")||"Spalte",values:[]}));
+  for(let i=start;i<rows.length;i++){const p=split(rows[i]);cols.forEach((c,j)=>c.values.push(num(p[j])))}
+  const good=cols.filter(c=>c.values.some(Number.isFinite));
+  if(good.length<2) throw new Error("Es werden mindestens zwei Zahlenspalten gebraucht, zum Beispiel Zeit und Messwert.");
+  return good;
+}
+
+let draft=null, draftY=1;
+function setDraft(cols,source,name){
+  draft={columns:cols,source};
+  draftY=1;
+  const ys=$("#ySel"); ys.innerHTML=cols.slice(1).map((c,i)=>`<option value="${i+1}">${esc(c.label)}</option>`).join("");
+  $("#colPick").hidden=cols.length<3;
+  if(name && !$("#mName").value) $("#mName").value=name;
+  $("#saveBtn").disabled=false; $("#draftDl").disabled=false; $("#draftXlsx").disabled=false;
+  drawDraft();
+}
+function drawDraft(){
+  const has=!!draft; $("#draftEmpty").style.display=has?"none":"grid";
+  const cv=$("#draftChart"); if(!has){cv.getContext("2d").clearRect(0,0,cv.width,cv.height);$("#draftStats").innerHTML="";return}
+  const s=byId($("#mSensor").value);
+  drawChart(cv,draft.columns[0].values,draft.columns[draftY].values,s?s.color:cssVar("--blue"),draft.columns[0].label,draft.columns[draftY].label);
+  $("#draftStats").innerHTML=statHTML(draft,draftY);
+}
+$("#ySel").addEventListener("change",e=>{draftY=+e.target.value;drawDraft()});
+$("#mSensor").addEventListener("change",drawDraft);
+
+function importMsg(html,warn){$("#importMsg").innerHTML=html?`<div class="notice${warn?" warn":""}">${html}</div>`:""}
+$("#fileIn").addEventListener("change",e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{try{const cols=parseExport(String(r.result));setDraft(cols,"phyphox-Export ("+f.name+")",f.name.replace(/\.[^.]+$/,""));importMsg(`„${esc(f.name)}“ übernommen: ${cols.length} Spalten, ${cols[0].values.length} Zeilen.`)}catch(err){importMsg(esc(err.message)+" Exportiere in phyphox als CSV oder Tabulator-getrennte Tabelle.",true)}};
+  r.onerror=()=>importMsg("Die Datei konnte nicht gelesen werden.",true);
+  r.readAsText(f); e.target.value="";
+});
+$("#pasteBtn").addEventListener("click",()=>{
+  try{const cols=parseExport($("#pasteIn").value);setDraft(cols,"phyphox-Export (eingefügt)");importMsg(`Text übernommen: ${cols.length} Spalten, ${cols[0].values.length} Zeilen.`)}
+  catch(err){importMsg(esc(err.message),true)}
+});
+$("#demoBtn").addEventListener("click",()=>{
+  const s=byId($("#mSensor").value);
+  const cols=s.demo(300).map(([label,values])=>({label,values}));
+  $("#mName").value="";
+  setDraft(cols,"Beispielmessung (simuliert)","Beispiel "+s.name);
+  importMsg("Beispielmessung erzeugt. Diese Werte sind simuliert, nicht gemessen.");
+});
+$("#saveBtn").addEventListener("click",()=>{
+  if(!draft) return;
+  const s=byId($("#mSensor").value);
+  const m={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),sensorId:s.id,name:$("#mName").value.trim()||(s.name+" "+new Date().toLocaleString("de-DE")),note:$("#mNote").value.trim(),created:Date.now(),source:draft.source,yIndex:draftY,columns:draft.columns};
+  const list=loadStore(); list.unshift(m);
+  if(draft.source.startsWith("Live")) clearLive();
+  const ok=saveStore(list); updateCount();
+  toast(ok?"Messung gespeichert":"Gespeichert bis zum Schließen der Seite – Browser-Speicher nicht verfügbar");
+  draft=null; $("#mName").value=""; $("#mNote").value=""; $("#saveBtn").disabled=true; $("#draftDl").disabled=true; $("#draftXlsx").disabled=true; $("#colPick").hidden=true; importMsg(""); drawDraft();
+});
+$("#draftDl").addEventListener("click",()=>{
+  if(!draft) return; const s=byId($("#mSensor").value);
+  const m={name:$("#mName").value.trim()||s.name,note:$("#mNote").value.trim(),created:Date.now(),source:draft.source,sensorId:s.id,columns:draft.columns};
+  downloadText(safeName(m.name)+".txt",measToText(m));
+});
+$("#draftXlsx").addEventListener("click",()=>{
+  if(!draft) return; const s=byId($("#mSensor").value);
+  const m={name:$("#mName").value.trim()||s.name,note:$("#mNote").value.trim(),created:Date.now(),source:draft.source,sensorId:s.id,columns:draft.columns};
+  downloadXlsx([m],safeName(m.name)+".xlsx");
+});
+$("#showCode").addEventListener("click",()=>{selectSensor($("#mSensor").value);showView("sensoren");setTimeout(()=>{const d=$("#fullBox");d.open=true;d.scrollIntoView({block:"start"})},50)});
+function updateRemote(){const v=$("#remoteIp").value.trim().replace(/^https?:\/\//,"");$("#remoteLink").href=v?"http://"+v+(v.includes(":")?"":":8080"):"#"}
+$("#remoteIp").addEventListener("input",updateRemote);
+$("#remoteLink").addEventListener("click",e=>{if(!$("#remoteIp").value.trim()){e.preventDefault();toast("Zuerst die Adresse aus phyphox eintragen");$("#remoteIp").focus()}});
+
+
+/* ================= Messweg: Browser oder phyphox-App ================= */
+const WAY_KEY="sensor-baukasten-messweg";
+function setWay(w){
+  document.querySelectorAll(".way-seg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.way===w));
+  document.querySelectorAll(".steps > li[data-way]").forEach(li=>li.hidden=li.dataset.way!==w);
+  try{localStorage.setItem(WAY_KEY,w)}catch(e){}
+  if(w==="web") requestAnimationFrame(renderLive);
+}
+document.querySelectorAll(".way-seg button").forEach(b=>b.addEventListener("click",()=>setWay(b.dataset.way)));
+
+/* ================= Live-Messung über Web Bluetooth =================
+   Der ESP32 nutzt die Bibliothek „phyphox BLE“. Sie sendet jeden Aufruf von
+   PhyphoxBLE::write(...) als Benachrichtigung auf der Daten-Charakteristik:
+   1 bis 5 Gleitkommazahlen (float32, little endian). Die Zeit (Kanal 0)
+   setzt – wie in phyphox – der Empfänger beim Eintreffen. */
+const PHY={
+  expService:"cddf0001-30f7-4671-8b43-5e40ba53514a",
+  dataService:"cddf1001-30f7-4671-8b43-5e40ba53514a",
+  dataChar:"cddf1002-30f7-4671-8b43-5e40ba53514a"
+};
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const live={dev:null,char:null,demo:null,connected:false,running:false,t0:0,offset:0,t:[],v:[],nch:0,last:null,sensorId:null,devName:"",dirty:false,stamps:[]};
+let liveY=0;
+
+function bleSupportMsg(html,warn){$("#bleSupport").innerHTML=html?`<div class="notice${warn?" warn":""}">${html}</div>`:""}
+function checkBleSupport(){
+  if(navigator.bluetooth) { bleSupportMsg(""); return true; }
+  if(isIOS) bleSupportMsg("Safari auf iPhone und iPad kann noch kein Bluetooth im Browser. Öffne die Adresse dieser App in der kostenlosen App <b>„Bluefy – Web BLE Browser“</b>, dann funktioniert es. Alternativ oben „Mit phyphox-App“ wählen.",true);
+  else bleSupportMsg("Dieser Browser unterstützt kein Bluetooth. Nutze <b>Chrome</b> oder <b>Edge</b> (Windows, Mac, Android). Alternativ oben „Mit phyphox-App“ wählen.",true);
+  return false;
+}
+function setStatus(text,cls){const el=$("#bleStatus");el.className="ble-status"+(cls?" "+cls:"");el.querySelector("span").textContent=text}
+function chLabel(i){
+  const s=byId(live.sensorId||$("#mSensor").value);
+  const g=s&&s.src&&s.src.graphs[i];
+  if(!g) return {name:"Kanal "+(i+1),unit:""};
+  return {name:g.label.replace("Stromstaerke","Stromstärke").replace("Hoehe","Höhe"),unit:g.unit};
+}
+function matchSensor(name){
+  if(!name) return null;
+  const n=name.toLowerCase();
+  return MEASURABLE.find(s=>n.startsWith(s.src.title.toLowerCase()))||null;
+}
+function onConnected(name,isDemo){
+  live.connected=true; live.devName=name; live.last=null; live.stamps=[];
+  if(live.t.length===0){ live.nch=0; live.v=[]; }
+  $("#liveTiles").innerHTML=""; $("#liveY").innerHTML="";
+  const m=matchSensor(name); if(m){ $("#mSensor").value=m.id; drawDraft(); }
+  live.sensorId=$("#mSensor").value;
+  setStatus((isDemo?"Demo: ":"Verbunden mit ")+name,"on");
+  $("#bleConnect").hidden=true; $("#liveDemo").hidden=true; $("#bleDisconnect").hidden=false; $("#liveCtl").hidden=false;
+  toast(isDemo?"Live-Demo läuft":"Verbunden");
+}
+function onDisconnected(reason){
+  if(live.running) stopLive();
+  if(live.char){ try{live.char.removeEventListener("characteristicvaluechanged",handleNotify)}catch(e){} }
+  live.connected=false; live.dev=null; live.char=null;
+  if(live.demo){clearInterval(live.demo);live.demo=null}
+  setStatus(reason||"Nicht verbunden",reason?"err":"");
+  $("#bleConnect").hidden=false; $("#liveDemo").hidden=false; $("#bleDisconnect").hidden=true; $("#liveCtl").hidden=true;
+  live.last=null; renderLive();
+}
+function onValues(vals){
+  const now=performance.now();
+  live.last=vals; live.nch=Math.max(live.nch,vals.length);
+  live.stamps.push(now); while(live.stamps.length&&now-live.stamps[0]>2000) live.stamps.shift();
+  if(live.running){
+    const t=(now-live.t0)/1000+live.offset;
+    live.t.push(+t.toFixed(4));
+    for(let i=0;i<live.nch;i++){ if(!live.v[i]) live.v[i]=new Array(live.t.length-1).fill(NaN); live.v[i].push(i<vals.length?vals[i]:NaN); }
+    if(live.t.length>200000) stopLive("Speichergrenze erreicht, Messung gestoppt");
+  }
+  live.dirty=true;
+}
+function handleNotify(e){
+  if(!live.connected||e.target!==live.char) return;
+  const dv=e.target.value; const n=Math.min(5,Math.floor(dv.byteLength/4)); if(!n) return;
+  const vals=[]; for(let i=0;i<n;i++) vals.push(dv.getFloat32(i*4,true));
+  onValues(vals);
+}
+async function bleConnect(all){
+  if(!checkBleSupport()) return;
+  try{
+    const opts = all ? {acceptAllDevices:true,optionalServices:[PHY.dataService,PHY.expService]}
+                     : {filters:[{services:[PHY.expService]}],optionalServices:[PHY.dataService]};
+    const dev=await navigator.bluetooth.requestDevice(opts);
+    live.dev=dev;
+    setStatus("Verbinde mit "+(dev.name||"Gerät")+" …","busy");
+    dev.addEventListener("gattserverdisconnected",()=>{const manual=live.manual;live.manual=false;onDisconnected(live.connected&&!manual?"Verbindung getrennt":"")});
+    const server=await dev.gatt.connect();
+    const svc=await server.getPrimaryService(PHY.dataService);
+    const ch=await svc.getCharacteristic(PHY.dataChar);
+    ch.addEventListener("characteristicvaluechanged",handleNotify);
+    await ch.startNotifications();
+    live.char=ch;
+    onConnected(dev.name||"ESP32",false);
+  }catch(e){
+    if(e&&e.name==="NotFoundError"&&/cancel/i.test(e.message||"")){ setStatus("Nicht verbunden"); return; }
+    if(e&&e.name==="NotFoundError"&&!all){ setStatus("Kein Gerät gewählt"); return; }
+    if(e&&(e.name==="SecurityError"||/permissions policy|disallowed/i.test(e.message||""))){
+      bleSupportMsg("Bluetooth ist in dieser Vorschau gesperrt. Öffne die App über ihre eigene Adresse (z. B. GitHub Pages) oder als installierte App.",true);
+      setStatus("Bluetooth hier nicht erlaubt","err"); return;
+    }
+    if(e&&e.name==="NotFoundError"){ setStatus("Kein phyphox-Dienst auf diesem Gerät","err"); return; }
+    setStatus("Verbindung fehlgeschlagen","err");
+    bleSupportMsg("Verbindung fehlgeschlagen: "+esc(e&&e.message||"unbekannter Fehler")+". ESP32 neu starten und erneut versuchen.",true);
+    try{live.dev&&live.dev.gatt.connected&&live.dev.gatt.disconnect()}catch(_){}
+  }
+}
+function bleDisconnect(){
+  if(live.demo){ onDisconnected(""); return; }
+  live.manual=true;
+  try{ if(live.dev&&live.dev.gatt.connected) live.dev.gatt.disconnect(); else onDisconnected(""); }catch(e){ onDisconnected(""); }
+}
+function startDemo(){
+  const s=byId($("#mSensor").value);
+  const cols=s.demo(600); const dt=(cols[0][1][1]-cols[0][1][0])||0.1; let i=0;
+  live.sensorId=s.id;
+  onConnected(s.src.title,true);
+  live.demo=setInterval(()=>{ onValues(cols.slice(1).map(c=>c[1][i%c[1].length])); i++; }, Math.max(30,dt*1000));
+}
+function startLive(){
+  if(!live.connected) return;
+  if(live.sensorId!==$("#mSensor").value && live.t.length===0) live.sensorId=$("#mSensor").value;
+  live.running=true; live.t0=performance.now();
+  $("#liveStart").disabled=true; $("#liveStop").disabled=false; $("#liveClear").disabled=true;
+  $("#liveStart").textContent="Läuft";
+}
+function liveColumns(){
+  const cols=[{label:"Zeit (s)",values:live.t.slice()}];
+  for(let i=0;i<live.nch;i++){const l=chLabel(i);cols.push({label:l.unit?`${l.name} (${l.unit})`:l.name,values:(live.v[i]||[]).slice()})}
+  return cols;
+}
+function stopLive(msg){
+  if(!live.running) return;
+  live.offset+=(performance.now()-live.t0)/1000; live.running=false;
+  $("#liveStart").disabled=false; $("#liveStop").disabled=true; $("#liveClear").disabled=live.t.length===0;
+  $("#liveStart").textContent="Weiter";
+  if(live.t.length>1){
+    const s=byId(live.sensorId); $("#mSensor").value=live.sensorId;
+    setDraft(liveColumns(),"Live über Bluetooth ("+(live.devName||"ESP32")+")",(s?s.name:"Messung")+" "+new Date().toLocaleString("de-DE",{dateStyle:"short",timeStyle:"short"}));
+    importMsg("Messung übernommen: "+live.t.length+" Werte. Unten prüfen und speichern.");
+  }
+  if(msg) toast(msg);
+  renderLive();
+}
+function clearLive(){
+  live.t=[]; live.v=[]; live.offset=0; live.nch=live.last?live.last.length:0;
+  $("#liveClear").disabled=true; $("#liveStart").textContent="Start";
+  renderLive();
+}
+function renderLive(){
+  live.dirty=false;
+  // Kacheln mit aktuellen Werten
+  const n=Math.max(live.nch,live.last?live.last.length:0);
+  const tiles=$("#liveTiles");
+  if(!live.connected||!n){ tiles.innerHTML=""; }
+  else {
+    if(tiles.children.length!==n) tiles.innerHTML=Array.from({length:n},(_,i)=>{const l=chLabel(i);return `<div class="tile"><small>${esc(l.name)}</small><b>–</b><span>${esc(l.unit)}</span></div>`}).join("");
+    for(let i=0;i<n;i++){const v=live.last&&live.last[i]; tiles.children[i].querySelector("b").textContent=Number.isFinite(v)?v.toLocaleString("de-DE",{minimumFractionDigits:Math.abs(v)<100?2:1,maximumFractionDigits:Math.abs(v)<100?2:1}):"–"}
+  }
+  // Zeit und Rate
+  const el=live.running?(performance.now()-live.t0)/1000+live.offset:live.offset;
+  const rate=live.stamps.length>1?(live.stamps.length-1)/((live.stamps[live.stamps.length-1]-live.stamps[0])/1000):0;
+  $("#liveTime").innerHTML=(live.running?'<span class="rec-dot"></span>':"")+el.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" s"+(rate?` · ${rate.toLocaleString("de-DE",{maximumFractionDigits:0})} Hz`:"");
+  // Kanalauswahl
+  const pick=$("#liveColPick"), sel=$("#liveY");
+  if(n>1){ if(sel.options.length!==n){ sel.innerHTML=Array.from({length:n},(_,i)=>`<option value="${i}">${esc(chLabel(i).name)}</option>`).join(""); sel.value=String(Math.min(liveY,n-1)); } pick.hidden=false; } else pick.hidden=true;
+  // Diagramm
+  const has=live.t.length>1 && live.v[liveY];
+  $("#liveEmpty").style.display=has?"none":"grid";
+  const cv=$("#liveChart");
+  if(has){ const s=byId(live.sensorId); const l=chLabel(liveY); drawChart(cv,live.t,live.v[liveY],s?s.color:cssVar("--accent"),"Zeit (s)",l.unit?`${l.name} (${l.unit})`:l.name); }
+  else if(cv.width) cv.getContext("2d").clearRect(0,0,cv.width,cv.height);
+}
+setInterval(()=>{ if(currentView==="messen" && (live.dirty||live.running)) renderLive(); },120);
+$("#liveY").addEventListener("change",e=>{liveY=+e.target.value;renderLive()});
+$("#bleConnect").addEventListener("click",()=>bleConnect(false));
+$("#bleConnectAll").addEventListener("click",()=>bleConnect(true));
+$("#bleDisconnect").addEventListener("click",bleDisconnect);
+$("#liveDemo").addEventListener("click",startDemo);
+$("#liveStart").addEventListener("click",startLive);
+$("#liveStop").addEventListener("click",()=>stopLive());
+$("#liveClear").addEventListener("click",()=>{ if(confirm("Aufgenommene Live-Werte verwerfen?")) clearLive(); });
+
+/* ================= Gespeichert ================= */
+let viewing=null;
+function renderSaved(){
+  const list=loadStore(); const box=$("#savedList");
+  $("#dlAll").disabled=!list.length; $("#dlAllX").disabled=!list.length;
+  if(!list.length){box.innerHTML=`<div class="empty">Noch keine Messungen gespeichert.<div class="btn-row" style="justify-content:center"><button class="btn" data-go="messen">Erste Messung aufnehmen</button></div></div>`;$("#viewerBox").hidden=true;$("#viewerStats").innerHTML="";return}
+  box.innerHTML=list.map(m=>{const s=byId(m.sensorId);return `<article class="saved" data-id="${m.id}">
+    <canvas aria-hidden="true"></canvas>
+    <div><h3>${esc(m.name)}</h3>
+    <div class="small muted">${esc(s?s.name:"")} · ${new Date(m.created).toLocaleString("de-DE")} · ${m.columns[0].values.length} Werte${m.source.startsWith("Beispiel")?" · simuliert":""}</div>
+    ${m.note?`<div class="small">${esc(m.note)}</div>`:""}
+    <div class="btn-row"><button class="btn ghost" data-act="show">Anzeigen</button><button class="btn" data-act="xlsx">Excel</button><button class="btn ghost" data-act="dl">Text</button><button class="btn danger" data-act="del">Löschen</button></div></div></article>`}).join("");
+  requestAnimationFrame(()=>box.querySelectorAll(".saved").forEach(el=>{const m=list.find(x=>x.id===el.dataset.id);const s=byId(m.sensorId);const yi=m.yIndex||1;drawChart(el.querySelector("canvas"),m.columns[0].values,m.columns[yi].values,s?s.color:"#2350B8","","",true)}));
+  if(viewing && list.find(x=>x.id===viewing)) showSaved(viewing); else {$("#viewerBox").hidden=true;$("#viewerStats").innerHTML=""}
+}
+function showSaved(id){
+  const m=loadStore().find(x=>x.id===id); if(!m) return; viewing=id;
+  const s=byId(m.sensorId); const yi=m.yIndex||1;
+  $("#viewerBox").hidden=false;
+  requestAnimationFrame(()=>drawChart($("#viewerChart"),m.columns[0].values,m.columns[yi].values,s?s.color:"#2350B8",m.columns[0].label,m.columns[yi].label));
+  $("#viewerStats").innerHTML=`<span><b>${esc(m.name)}</b></span>`+statHTML(m,yi);
+  $("#viewerBox").scrollIntoView({block:"nearest"});
+}
+$("#savedList").addEventListener("click",e=>{
+  const go=e.target.closest("[data-go]"); if(go){showView(go.dataset.go);return}
+  const b=e.target.closest("[data-act]"); if(!b) return;
+  const id=b.closest(".saved").dataset.id; const list=loadStore(); const m=list.find(x=>x.id===id);
+  if(b.dataset.act==="show") showSaved(id);
+  if(b.dataset.act==="dl") downloadText(safeName(m.name)+".txt",measToText(m));
+  if(b.dataset.act==="xlsx") downloadXlsx([m],safeName(m.name)+".xlsx");
+  if(b.dataset.act==="del"){ if(confirm(`„${m.name}“ löschen?`)){saveStore(list.filter(x=>x.id!==id));if(viewing===id)viewing=null;updateCount();renderSaved();toast("Messung gelöscht")} }
+});
+$("#dlAllX").addEventListener("click",()=>{
+  const list=loadStore(); if(!list.length) return;
+  downloadXlsx(list,"alle_messungen_"+new Date().toISOString().slice(0,10)+".xlsx");
+});
+$("#dlAll").addEventListener("click",()=>{
+  const list=loadStore(); if(!list.length) return;
+  const txt=list.map(measToText).join("\n\n");
+  downloadText("alle_messungen_"+new Date().toISOString().slice(0,10)+".txt",txt);
+});
+
+
+/* ================= Hell / Dunkel ================= */
+const THEME_KEY="sensor-baukasten-theme";
+const darkMQ=matchMedia("(prefers-color-scheme: dark)");
+function activeTheme(){const t=document.documentElement.dataset.theme;return t==="dark"||t==="light"?t:(darkMQ.matches?"dark":"light")}
+function themeChanged(){
+  const t=activeTheme();
+  $("#themeBtn").setAttribute("aria-label",t==="dark"?"Helles Design einschalten":"Dunkles Design einschalten");
+  const meta=document.getElementById("themeColor"); if(meta) meta.setAttribute("content",t==="dark"?"#0A1730":"#FFFFFF");
+  drawDraft(); if(currentView==="gespeichert") renderSaved();
+}
+$("#themeBtn").addEventListener("click",()=>{
+  const t=activeTheme()==="dark"?"light":"dark";
+  document.documentElement.dataset.theme=t;
+  try{localStorage.setItem(THEME_KEY,t)}catch(e){}
+  themeChanged();
+});
+
+/* ================= Start ================= */
+$("#mSensor").innerHTML=MEASURABLE.map(s=>`<option value="${s.id}">${esc(s.name)} (${esc(s.module)})</option>`).join("");
+renderStrips(); selectSensor(cur); updateCount();
+let savedWay="web"; try{savedWay=localStorage.getItem(WAY_KEY)||"web"}catch(e){}
+setWay(savedWay==="app"?"app":"web"); checkBleSupport();
+let rz; addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(currentView==="messen")drawDraft();if(currentView==="gespeichert")renderSaved()},150)});
+if(darkMQ.addEventListener) darkMQ.addEventListener("change",themeChanged);
+themeChanged();
+})();
+
+</script>
+<script>
+/* Offline-Fähigkeit und Installation */
+(function(){
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
+  }
+  const row = document.getElementById("installRow"), btn = document.getElementById("installBtn");
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  let deferred = null;
+  addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; if (!standalone) row.hidden = false; });
+  addEventListener("appinstalled", () => { row.hidden = true; deferred = null; });
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (isIOS && !standalone) row.hidden = false;
+  btn.addEventListener("click", async () => {
+    if (deferred) { deferred.prompt(); await deferred.userChoice; deferred = null; row.hidden = true; return; }
+    if (isIOS) alert("So installierst du die App:\n\n1. Auf das Teilen-Symbol tippen (iPhone unten, iPad oben).\n2. „Zum Home-Bildschirm“ wählen.\n3. Auf „Hinzufügen“ tippen.\n\nDas funktioniert in Safari.");
+  });
+})();
+</script>
+</body>
+</html>
+
