@@ -37,10 +37,21 @@ Als installierbare App (PWA) läuft sie auch offline.
 
 Nach dem ersten Öffnen mit Internet funktioniert die App auch ohne Verbindung.
 
+## Messen direkt im Browser (ohne phyphox-App)
+
+Unter „Messen“ → „Direkt im Browser“ verbindet sich die App per Web Bluetooth mit dem ESP32.
+Der ESP32 braucht dafür dasselbe Programm wie für phyphox (Bibliothek „phyphox BLE“).
+
+- Funktioniert in **Chrome** und **Edge** auf Windows, Mac, Android und ChromeOS.
+- **iPhone / iPad:** Safari unterstützt kein Web Bluetooth. Die Adresse in der kostenlosen
+  App „Bluefy – Web BLE Browser“ öffnen oder den Weg „Mit phyphox-App“ nutzen.
+- Firefox unterstützt kein Web Bluetooth.
+- Ein ESP32 kann nur mit einem Gerät gleichzeitig verbunden sein.
+
 ## Updates
 
-Neue Dateien hochladen und in `sw.js` die Zeile `const VERSION = "sensor-baukasten-v2";`
-hochzählen (`v3`, `v4`, …). Die installierten Apps laden die neue Fassung beim nächsten Start
+Neue Dateien hochladen und in `sw.js` die Zeile `const VERSION = "sensor-baukasten-v3";`
+hochzählen (`v4`, `v5`, …). Die installierten Apps laden die neue Fassung beim nächsten Start
 mit Internet; spätestens nach zweimaligem Öffnen ist sie aktiv.
 
 ## Hinweise
