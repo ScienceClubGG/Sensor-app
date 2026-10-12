@@ -233,6 +233,16 @@ input[type=file]{max-width:100%}
 .ble-status.on i{background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 25%,transparent)}
 .ble-status.busy i{background:var(--accent)}
 .ble-status.err i{background:var(--warn)}
+.ble-err{border:2px solid var(--warn);border-radius:8px;padding:14px 16px;margin:10px 0;background:color-mix(in srgb,var(--warn) 8%,var(--surface))}
+.ble-err.info{border-color:var(--accent);background:var(--accent-soft)}
+.ble-err-title{display:block;font-family:var(--font-head);font-size:1.08rem;margin-bottom:6px;color:var(--warn)}
+.ble-err.info .ble-err-title{color:var(--ink)}
+.ble-err p{margin:0 0 6px}
+.ble-err-lbl{font-weight:700}
+.ble-err ol{margin:4px 0 8px;padding-left:22px}
+.ble-err li{margin:3px 0}
+.ble-err-detail{font-size:.8rem;color:var(--ink-soft);font-family:var(--font-code)}
+.ble-err .btn-row{margin:8px 0 0}
 .live-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:6px 0 12px}
 .tile{border:1.5px solid var(--line);border-radius:6px;padding:10px 12px;background:var(--paper)}
 .tile small{display:block;color:var(--ink-soft);font-weight:700;font-size:.82rem}
@@ -395,6 +405,7 @@ input[type=file]{max-width:100%}
         <button class="btn ghost" id="liveDemo">Live-Demo ohne ESP32</button>
       </div>
       <div class="ble-status" id="bleStatus"><i></i><span>Nicht verbunden</span></div>
+      <div id="unitHint"></div>
       <div class="live-tiles" id="liveTiles"></div>
       <div class="live-ctl" id="liveCtl" hidden>
         <button class="btn" id="liveStart">Start</button>
@@ -1564,52 +1575,220 @@ document.querySelectorAll(".way-seg button").forEach(b=>b.addEventListener("clic
 const PHY={
   expService:"cddf0001-30f7-4671-8b43-5e40ba53514a",
   dataService:"cddf1001-30f7-4671-8b43-5e40ba53514a",
-  dataChar:"cddf1002-30f7-4671-8b43-5e40ba53514a"
+  dataChar:"cddf1002-30f7-4671-8b43-5e40ba53514a",
+  expChar:"cddf0002-30f7-4671-8b43-5e40ba53514a"
 };
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
 const live={dev:null,char:null,demo:null,connected:false,running:false,t0:0,offset:0,t:[],v:[],nch:0,last:null,sensorId:null,devName:"",dirty:false,stamps:[]};
 let liveY=0;
 
-function bleSupportMsg(html,warn){$("#bleSupport").innerHTML=html?`<div class="notice${warn?" warn":""}">${html}</div>`:""}
-function checkBleSupport(){
-  if(navigator.bluetooth) { bleSupportMsg(""); return true; }
-  if(isIOS) bleSupportMsg("Safari auf iPhone und iPad kann noch kein Bluetooth im Browser. Öffne die Adresse dieser App in der kostenlosen App <b>„Bluefy – Web BLE Browser“</b>, dann funktioniert es. Alternativ oben „Mit phyphox-App“ wählen.",true);
-  else bleSupportMsg("Dieser Browser unterstützt kein Bluetooth. Nutze <b>Chrome</b> oder <b>Edge</b> (Windows, Mac, Android). Alternativ oben „Mit phyphox-App“ wählen.",true);
-  return false;
+/* ---------- Fehleranzeige: Grund und passende Lösung ---------- */
+const UA=navigator.userAgent;
+const isFirefox=/Firefox|FxiOS/.test(UA);
+const isMacSafari=/Safari/.test(UA)&&!/Chrome|Chromium|Edg|OPR|Android/.test(UA)&&!isIOS;
+const isAndroid=/Android/.test(UA);
+const isLinux=/Linux/.test(UA)&&!isAndroid;
+function showBleError(err){
+  const box=$("#bleSupport");
+  if(!err){ box.innerHTML=""; return; }
+  box.innerHTML=`<div class="ble-err${err.level==="info"?" info":""}" role="alert">
+    <b class="ble-err-title">${esc(err.title)}</b>
+    <p><span class="ble-err-lbl">Grund:</span> ${err.reason}</p>
+    <p class="ble-err-lbl">So behebst du es:</p>
+    <ol>${err.fixes.map(f=>`<li>${f}</li>`).join("")}</ol>
+    ${err.detail?`<p class="ble-err-detail">Technische Meldung: ${esc(err.detail)}</p>`:""}
+    ${err.alt===false?"":`<div class="btn-row"><button class="btn ghost" type="button" data-ble-alt="app">Stattdessen mit phyphox-App messen</button>${err.retry?`<button class="btn ghost" type="button" data-ble-alt="retry">Erneut versuchen</button>`:""}</div>`}
+  </div>`;
+  box.scrollIntoView({block:"nearest",behavior:"smooth"});
 }
-function setStatus(text,cls){const el=$("#bleStatus");el.className="ble-status"+(cls?" "+cls:"");el.querySelector("span").textContent=text}
+$("#bleSupport").addEventListener("click",e=>{
+  const b=e.target.closest("[data-ble-alt]"); if(!b) return;
+  if(b.dataset.bleAlt==="app"){ showBleError(null); setWay("app"); }
+  if(b.dataset.bleAlt==="retry"){ showBleError(null); bleConnect(false); }
+});
+
+// Browser kann gar kein Bluetooth
+function supportError(){
+  if(!window.isSecureContext) return {title:"Bluetooth nur über eine sichere Adresse",
+    reason:"Die App ist über <b>http://</b> oder als lokale Datei geöffnet. Browser erlauben Bluetooth nur auf <b>https://</b>-Seiten.",
+    fixes:["Die App über ihre GitHub-Pages-Adresse öffnen (beginnt mit <b>https://</b>).","Oder die installierte App vom Home-Bildschirm bzw. Startmenü starten."]};
+  if(isIOS) return {title:"Safari kann kein Bluetooth",
+    reason:"Apple erlaubt auf iPhone und iPad in Safari und allen anderen Browsern (auch Chrome für iOS) keinen Bluetooth-Zugriff aus Webseiten.",
+    fixes:["Die kostenlose App <b>„Bluefy – Web BLE Browser“</b> aus dem App Store installieren.","Darin die Adresse dieser App öffnen und erneut verbinden.","Oder oben „Mit phyphox-App“ wählen."]};
+  if(isFirefox) return {title:"Firefox unterstützt kein Bluetooth",
+    reason:"Firefox hat die Web-Bluetooth-Schnittstelle nicht eingebaut.",
+    fixes:["Die App in <b>Chrome</b> oder <b>Edge</b> öffnen.","Oder oben „Mit phyphox-App“ wählen."]};
+  if(isMacSafari) return {title:"Safari unterstützt kein Bluetooth",
+    reason:"Safari auf dem Mac hat die Web-Bluetooth-Schnittstelle nicht eingebaut.",
+    fixes:["Die App in <b>Chrome</b> oder <b>Edge</b> öffnen.","Oder oben „Mit phyphox-App“ wählen."]};
+  return {title:"Dieser Browser unterstützt kein Bluetooth",
+    reason:"Die Web-Bluetooth-Schnittstelle fehlt, etwa in Samsung Internet, Opera Mini oder älteren Browsern.",
+    fixes:["Die App in einer aktuellen Version von <b>Chrome</b> oder <b>Edge</b> öffnen.","Oder oben „Mit phyphox-App“ wählen."]};
+}
+function checkBleSupport(){
+  if(navigator.bluetooth && window.isSecureContext){ return true; }
+  showBleError(supportError()); return false;
+}
+
+// Fehler beim Verbinden einordnen
+function classifyBleError(e,stage){
+  const n=(e&&e.name)||"", m=(e&&e.message)||String(e||"");
+  const D=n?n+": "+m:m;
+  if(/cancel/i.test(m)) return null;   // Auswahl abgebrochen
+  if(/permissions policy|disallowed|iframe/i.test(m)) return {title:"Bluetooth ist in dieser Ansicht gesperrt",
+    reason:"Die App läuft eingebettet in einer anderen Seite (zum Beispiel der Claude-Vorschau). Eingebettete Seiten dürfen kein Bluetooth benutzen.",
+    fixes:["Die App über ihre eigene Adresse öffnen: <b>scienceclubgg.github.io/Sensor-app</b>.","Oder die installierte App starten."],detail:D};
+  if(/globally disabled/i.test(m)) return {title:"Web Bluetooth ist im Browser ausgeschaltet",
+    reason:isLinux?"Unter Linux ist Web Bluetooth in Chrome standardmäßig deaktiviert.":"Web Bluetooth wurde im Browser oder per Schul-Richtlinie deaktiviert.",
+    fixes:isLinux?["In Chrome die Adresse <b>chrome://flags/#enable-experimental-web-platform-features</b> öffnen.","Den Eintrag auf „Enabled“ stellen und Chrome neu starten."]:["In den Browser-Einstellungen unter Datenschutz → Website-Einstellungen → Bluetooth den Zugriff erlauben.","Auf Schulgeräten die IT fragen, ob Web Bluetooth gesperrt ist.","Oder ein anderes Gerät bzw. die phyphox-App nutzen."],detail:D,retry:true};
+  if(/adapter not available|adapter is not available|no bluetooth adapter|bluetooth is turned off|radio/i.test(m) || stage==="off") return {title:"Bluetooth ist ausgeschaltet",
+    reason:"Der Browser findet kein eingeschaltetes Bluetooth an diesem Gerät.",
+    fixes:[isAndroid?"Bluetooth in den Schnellstellungen einschalten (von oben wischen).":"Bluetooth in den Systemeinstellungen einschalten.","Hat der Computer kein Bluetooth, einen USB-Bluetooth-Stick verwenden.","Danach erneut auf „ESP32 verbinden“ tippen."],detail:stage==="off"?"":D,retry:true};
+  if(/permission|denied|blocked/i.test(m) || n==="NotAllowedError") return {title:"Bluetooth-Zugriff wurde nicht erlaubt",
+    reason:"Der Browser oder das Betriebssystem hat den Zugriff auf Bluetooth verweigert.",
+    fixes:isAndroid?["In den Android-Einstellungen → Apps → Chrome → Berechtigungen „Geräte in der Nähe“ und „Standort“ erlauben.","Prüfen, ob der Standort (GPS) eingeschaltet ist – ältere Android-Versionen brauchen ihn für Bluetooth-Suche.","Seite neu laden und erneut verbinden."]:
+      ["Links in der Adressleiste auf das Schloss bzw. die Einstellungen tippen und Bluetooth erlauben.","Auf dem Mac: Systemeinstellungen → Datenschutz & Sicherheit → Bluetooth → Chrome bzw. Edge erlauben.","Seite neu laden und erneut verbinden."],detail:D,retry:true};
+  if(/user gesture/i.test(m)) return {title:"Verbindung muss per Tippen gestartet werden",
+    reason:"Browser starten die Bluetooth-Suche nur direkt nach einem Tippen oder Klick.",
+    fixes:["Noch einmal direkt auf „ESP32 verbinden“ tippen."],detail:D,retry:true};
+  if(stage==="request" && n==="NotFoundError") return {title:"Kein ESP32 gefunden",
+    reason:"In der Nähe sendet kein Gerät mit dem phyphox-Bluetooth-Dienst – oder du hast keines ausgewählt.",
+    fixes:["Prüfen, ob der ESP32 Strom hat (rote LED leuchtet).","ESP32 mit der EN-Taste neu starten und 5 Sekunden warten.","Ist der ESP32 noch mit phyphox oder einem anderen Gerät verbunden, dort trennen – er sendet dann nicht mehr.","Prüfen, ob das Programm mit <b>PhyphoxBLE::start(…)</b> hochgeladen ist (seriellen Monitor öffnen: dort sollte „Bereit“ stehen)."],detail:D,retry:true};
+  if(stage==="connect") {
+    if(/timeout|zeitüberschreitung/i.test(m)) return {title:"ESP32 antwortet nicht",
+      reason:"Das Gerät wurde gefunden, aber die Verbindung kam innerhalb von 12 Sekunden nicht zustande.",
+      fixes:["Näher an den ESP32 gehen (unter 5 m, keine Metallgehäuse dazwischen).","ESP32 mit der EN-Taste neu starten.","Andere Handys oder Tablets, auf denen phyphox läuft, trennen."],detail:D,retry:true};
+    if(/range/i.test(m)) return {title:"ESP32 außer Reichweite",
+      reason:"Das Gerät war beim Suchen sichtbar, ist jetzt aber nicht mehr erreichbar.",
+      fixes:["Näher an den ESP32 gehen.","Prüfen, ob der ESP32 noch Strom hat.","Erneut verbinden."],detail:D,retry:true};
+    return {title:"Verbindung zum ESP32 fehlgeschlagen",
+      reason:"Der ESP32 hat die Verbindung abgelehnt oder abgebrochen. Meist ist er noch mit einem anderen Gerät verbunden oder hängt.",
+      fixes:["phyphox auf anderen Geräten schließen bzw. dort „Trennen“ wählen.","ESP32 mit der EN-Taste neu starten.","Unter Windows: In den Bluetooth-Einstellungen den ESP32 entfernen, falls er dort als gekoppelt auftaucht."],detail:D,retry:true};
+  }
+  if(stage==="service") return {title:"Auf dem Gerät läuft kein phyphox-Programm",
+    reason:"Das gewählte Gerät bietet den phyphox-Datendienst nicht an. Entweder wurde ein falsches Gerät gewählt (z. B. Kopfhörer) oder das Programm auf dem ESP32 nutzt die Bibliothek „phyphox BLE“ nicht.",
+    fixes:["Beim Verbinden den Namen des Sensors wählen, nicht ein anderes Bluetooth-Gerät.","Das Programm aus dieser App (Sensoren → Vollständiger Quellcode) auf den ESP32 laden.","In der Arduino IDE prüfen, ob die Bibliothek „phyphox BLE“ installiert ist."],detail:D,retry:true};
+  if(stage==="notify") return {title:"Messwerte können nicht abonniert werden",
+    reason:"Die Verbindung steht, aber der ESP32 lässt das Empfangen der Messwerte nicht zu. Häufig nach einem Neustart des ESP32 während einer bestehenden Verbindung.",
+    fixes:["Auf „Erneut versuchen“ tippen.","Hilft das nicht: ESP32 neu starten, Seite neu laden, erneut verbinden.","Die neueste Version der Bibliothek „phyphox BLE“ installieren und das Programm neu hochladen."],detail:D,retry:true};
+  if(/already in progress/i.test(m)) return {title:"Bluetooth ist noch beschäftigt",
+    reason:"Eine vorherige Verbindung läuft noch.",
+    fixes:["Zwei Sekunden warten und erneut versuchen.","Sonst Seite neu laden."],detail:D,retry:true};
+  return {title:"Verbindung fehlgeschlagen",
+    reason:"Ein unerwarteter Bluetooth-Fehler ist aufgetreten.",
+    fixes:["ESP32 neu starten.","Bluetooth am Gerät aus- und wieder einschalten.","Seite neu laden und erneut verbinden."],detail:D,retry:true};
+}
+const ERR_NODATA={title:"Verbunden, aber keine Messwerte",
+  reason:"Seit 6 Sekunden kommt vom ESP32 kein Wert an. Die Bluetooth-Verbindung funktioniert, aber das Programm sendet nichts.",
+  fixes:["Seriellen Monitor (115200 Baud) öffnen: Steht dort eine Fehlermeldung wie „Sensor nicht gefunden“ oder „Sensor antwortet nicht“, die Verkabelung des Sensors prüfen.","Prüfen, ob im Programm in <b>loop()</b> <b>PhyphoxBLE::write(…)</b> aufgerufen wird.","Bei Temperatur- und Abstandssensor: Ohne gültigen Messwert sendet das Programm absichtlich nichts – Fühler bzw. Hindernis prüfen."],alt:false,level:"info"};
+function lostError(){ return {title:"Verbindung während der Messung abgebrochen",
+  reason:"Der ESP32 ist nicht mehr erreichbar. Die bis dahin aufgenommenen Werte sind unten zum Speichern bereit.",
+  fixes:["Abstand prüfen (unter 5 m) und Hindernisse entfernen.","USB-Kabel bzw. Stromversorgung prüfen – ein Wackelkontakt startet den ESP32 neu.","Startet der ESP32 bei jeder Messung neu, zieht der Sensor zu viel Strom: Sensor an eine eigene Versorgung anschließen.","Danach erneut verbinden und mit „Weiter“ fortsetzen."],retry:true}; }
+
+/* ---------- Kanalnamen und Einheiten ----------
+   Vorrang: 1. Beschreibung, die der ESP32 selbst schickt (wie bei phyphox)
+            2. bekannter Sensor anhand des Gerätenamens
+            3. Sensor, den die Nutzerin oder der Nutzer nach dem Verbinden wählt
+            4. neutral „Kanal n“ ohne Einheit */
+function niceLabel(s){ return String(s||"").replace(/Stromstaerke/g,"Stromstärke").replace(/Hoehe/g,"Höhe").replace(/Flussdichte/g,"Flussdichte").trim(); }
 function chLabel(i){
-  const s=byId(live.sensorId||$("#mSensor").value);
+  if(live.meta && live.meta.ch[i]) return live.meta.ch[i];
+  const s = live.templateId ? byId(live.templateId) : null;
   const g=s&&s.src&&s.src.graphs[i];
-  if(!g) return {name:"Kanal "+(i+1),unit:""};
-  return {name:g.label.replace("Stromstaerke","Stromstärke").replace("Hoehe","Höhe"),unit:g.unit};
+  if(g) return {name:niceLabel(g.label),unit:g.unit};
+  return {name:"Kanal "+(i+1),unit:""};
 }
 function matchSensor(name){
   if(!name) return null;
-  const n=name.toLowerCase();
-  return MEASURABLE.find(s=>n.startsWith(s.src.title.toLowerCase()))||null;
+  const n=name.toLowerCase().replace(/[^a-z0-9äöü]/g,"");
+  const keys={temp:["temperatur","ds18b20"],mag:["magnet","hall","ss49"],ui:["spannung","strom","ina219"],dist:["abstand","ultraschall","hcsr04","distanz"],force:["kraft","waage","hx711","wägezelle","waegezelle"],press:["druck","bmp280","luftdruck"]};
+  return MEASURABLE.find(s=>n.startsWith(s.src.title.toLowerCase().replace(/[^a-z0-9äöü]/g,""))||(keys[s.id]||[]).some(k=>n.includes(k)))||null;
+}
+function parseExperiment(xml){
+  const doc=new DOMParser().parseFromString(xml,"text/xml");
+  if(doc.getElementsByTagName("parsererror").length) return null;
+  const ch=[];
+  const set=(idx,name,unit)=>{ if(idx>=0&&idx<5&&!ch[idx]) ch[idx]={name:niceLabel(name)||"Kanal "+(idx+1),unit:(unit||"").trim()}; };
+  for(const g of doc.getElementsByTagName("graph")){
+    for(const inp of g.getElementsByTagName("input")){
+      if(inp.getAttribute("axis")!=="y") continue;
+      const mm=/CH(\d)/.exec(inp.textContent||""); if(!mm||mm[1]==="0") continue;
+      set(+mm[1]-1, g.getAttribute("labelY")||g.getAttribute("label"), g.getAttribute("unitY"));
+    }
+  }
+  for(const d of doc.getElementsByTagName("data")){   // Export-Spalten, z. B. "Temperatur (°C)"
+    const mm=/CH(\d)/.exec(d.textContent||""); if(!mm||mm[1]==="0") continue;
+    const nm=d.getAttribute("name")||""; const u=/\(([^)]*)\)\s*$/.exec(nm);
+    set(+mm[1]-1, u?nm.slice(0,u.index):nm, u?u[1]:"");
+  }
+  const t=doc.getElementsByTagName("title")[0];
+  return ch.length?{title:t?t.textContent.trim():"",ch}:null;
+}
+// Experiment-Beschreibung vom ESP32 lesen (Kopf „phyphox“ + Länge + CRC, dann 20-Byte-Pakete)
+async function readExperiment(svc){
+  const c=await svc.getCharacteristic(PHY.expChar);
+  return await new Promise(async(resolve)=>{
+    let buf=null,len=0,got=0; const done=v=>{clearTimeout(to);c.removeEventListener("characteristicvaluechanged",on);try{c.stopNotifications()}catch(_){}resolve(v)};
+    let to=setTimeout(()=>done(null),3000);   // ohne Kopf nach 3 s: keine Beschreibung
+    const on=e=>{
+      const b=new Uint8Array(e.target.value.buffer,e.target.value.byteOffset,e.target.value.byteLength);
+      if(!buf){
+        if(String.fromCharCode(...b.slice(0,7))!=="phyphox") return;
+        len=(b[7]<<24|b[8]<<16|b[9]<<8|b[10])>>>0; if(!len||len>200000) return done(null);
+        buf=new Uint8Array(len); clearTimeout(to); to=setTimeout(()=>done(null),3000+len); return;
+      }
+      const n=Math.min(b.length,len-got); buf.set(b.subarray(0,n),got); got+=n;
+      if(got>=len){ try{ done(parseExperiment(new TextDecoder().decode(buf))); }catch(_){ done(null); } }
+    };
+    c.addEventListener("characteristicvaluechanged",on);
+    try{ await c.startNotifications(); }catch(_){ done(null); }
+  });
+}
+function setStatus(text,cls){const el=$("#bleStatus");el.className="ble-status"+(cls?" "+cls:"");el.querySelector("span").textContent=text}
+function unitHint(){
+  const el=$("#unitHint"); if(!el) return;
+  if(!live.connected||live.demo){ el.innerHTML=""; return; }
+  if(live.meta){ el.innerHTML=`<p class="small muted">Kanäle und Einheiten kommen direkt vom ESP32${live.meta.title?` („${esc(live.meta.title)}“)`:""}.</p>`; return; }
+  if(live.templateId){ const s=byId(live.templateId); el.innerHTML=`<p class="small muted">Einheiten nach Vorlage „${esc(s.name)}“. Falls falsch: oben einen anderen Sensor wählen.</p>`; return; }
+  el.innerHTML=`<div class="notice">Das Gerät „${esc(live.devName)}“ ist nicht bekannt und hat keine Beschreibung geschickt. Die Kanäle haben deshalb keine Einheiten. Oben bei „Sensor“ den passenden Sensor wählen, um dessen Einheiten zu übernehmen.</div>`;
 }
 function onConnected(name,isDemo){
   live.connected=true; live.devName=name; live.last=null; live.stamps=[];
   if(live.t.length===0){ live.nch=0; live.v=[]; }
   $("#liveTiles").innerHTML=""; $("#liveY").innerHTML="";
-  const m=matchSensor(name); if(m){ $("#mSensor").value=m.id; drawDraft(); }
+  let m=null;
+  if(isDemo){ m=byId($("#mSensor").value); }
+  else { m=matchSensor((live.meta&&live.meta.title)||"")||matchSensor(name); }
+  live.templateId=m?m.id:null;
+  if(m){ $("#mSensor").value=m.id; drawDraft(); }
   live.sensorId=$("#mSensor").value;
   setStatus((isDemo?"Demo: ":"Verbunden mit ")+name,"on");
   $("#bleConnect").hidden=true; $("#liveDemo").hidden=true; $("#bleDisconnect").hidden=false; $("#liveCtl").hidden=false;
+  showBleError(null); unitHint();
   toast(isDemo?"Live-Demo läuft":"Verbunden");
+  clearTimeout(live.watch);
+  if(!isDemo) live.watch=setTimeout(()=>{ if(live.connected&&!live.last) showBleError(ERR_NODATA); },6000);
 }
-function onDisconnected(reason){
+$("#mSensor").addEventListener("change",()=>{
+  if(!live.connected||live.demo) return;
+  live.sensorId=$("#mSensor").value;
+  if(!live.meta){ live.templateId=live.sensorId; $("#liveTiles").innerHTML=""; $("#liveY").innerHTML=""; unitHint(); renderLive(); }
+});
+function onDisconnected(reason,unexpected){
+  const wasRunning=live.running;
   if(live.running) stopLive();
+  clearTimeout(live.watch);
   if(live.char){ try{live.char.removeEventListener("characteristicvaluechanged",handleNotify)}catch(e){} }
   live.connected=false; live.dev=null; live.char=null;
   if(live.demo){clearInterval(live.demo);live.demo=null}
   setStatus(reason||"Nicht verbunden",reason?"err":"");
   $("#bleConnect").hidden=false; $("#liveDemo").hidden=false; $("#bleDisconnect").hidden=true; $("#liveCtl").hidden=true;
-  live.last=null; renderLive();
+  if(unexpected) showBleError(wasRunning||live.t.length?lostError():Object.assign(lostError(),{reason:"Der ESP32 hat die Verbindung getrennt oder ist nicht mehr erreichbar."}));
+  live.last=null; unitHint(); renderLive();
 }
 function onValues(vals){
   const now=performance.now();
+  if(!live.last && $("#bleSupport").querySelector(".ble-err.info")) showBleError(null);
   live.last=vals; live.nch=Math.max(live.nch,vals.length);
   live.stamps.push(now); while(live.stamps.length&&now-live.stamps[0]>2000) live.stamps.shift();
   if(live.running){
@@ -1626,33 +1805,40 @@ function handleNotify(e){
   const vals=[]; for(let i=0;i<n;i++) vals.push(dv.getFloat32(i*4,true));
   onValues(vals);
 }
+const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(Object.assign(new Error("Zeitüberschreitung (timeout)"),{name:"TimeoutError"})),ms))]);
 async function bleConnect(all){
   if(!checkBleSupport()) return;
+  showBleError(null);
+  let stage="request";
   try{
+    if(navigator.bluetooth.getAvailability){
+      const ok=await navigator.bluetooth.getAvailability().catch(()=>true);
+      if(ok===false){ showBleError(classifyBleError(null,"off")); setStatus("Bluetooth aus","err"); return; }
+    }
     const opts = all ? {acceptAllDevices:true,optionalServices:[PHY.dataService,PHY.expService]}
                      : {filters:[{services:[PHY.expService]}],optionalServices:[PHY.dataService]};
     const dev=await navigator.bluetooth.requestDevice(opts);
-    live.dev=dev;
+    live.dev=dev; live.meta=null;
     setStatus("Verbinde mit "+(dev.name||"Gerät")+" …","busy");
-    dev.addEventListener("gattserverdisconnected",()=>{const manual=live.manual;live.manual=false;onDisconnected(live.connected&&!manual?"Verbindung getrennt":"")});
-    const server=await dev.gatt.connect();
+    dev.addEventListener("gattserverdisconnected",()=>{const manual=live.manual;live.manual=false;const unexp=live.connected&&!manual;onDisconnected(unexp?"Verbindung abgebrochen":"",unexp)});
+    stage="connect";
+    const server=await withTimeout(dev.gatt.connect(),12000);
+    stage="service";
     const svc=await server.getPrimaryService(PHY.dataService);
     const ch=await svc.getCharacteristic(PHY.dataChar);
+    // Beschreibung mit Kanalnamen und Einheiten holen (wie die phyphox-App)
+    setStatus("Lese Sensorbeschreibung …","busy");
+    try{ const es=await server.getPrimaryService(PHY.expService); live.meta=await readExperiment(es); }catch(_){ live.meta=null; }
+    stage="notify";
     ch.addEventListener("characteristicvaluechanged",handleNotify);
     await ch.startNotifications();
     live.char=ch;
-    onConnected(dev.name||"ESP32",false);
+    onConnected(dev.name||(live.meta&&live.meta.title)||"ESP32",false);
   }catch(e){
-    if(e&&e.name==="NotFoundError"&&/cancel/i.test(e.message||"")){ setStatus("Nicht verbunden"); return; }
-    if(e&&e.name==="NotFoundError"&&!all){ setStatus("Kein Gerät gewählt"); return; }
-    if(e&&(e.name==="SecurityError"||/permissions policy|disallowed/i.test(e.message||""))){
-      bleSupportMsg("Bluetooth ist in dieser Vorschau gesperrt. Öffne die App über ihre eigene Adresse (z. B. GitHub Pages) oder als installierte App.",true);
-      setStatus("Bluetooth hier nicht erlaubt","err"); return;
-    }
-    if(e&&e.name==="NotFoundError"){ setStatus("Kein phyphox-Dienst auf diesem Gerät","err"); return; }
-    setStatus("Verbindung fehlgeschlagen","err");
-    bleSupportMsg("Verbindung fehlgeschlagen: "+esc(e&&e.message||"unbekannter Fehler")+". ESP32 neu starten und erneut versuchen.",true);
-    try{live.dev&&live.dev.gatt.connected&&live.dev.gatt.disconnect()}catch(_){}
+    const err=classifyBleError(e,stage);
+    try{ if(live.dev&&live.dev.gatt.connected){ live.manual=true; live.dev.gatt.disconnect(); } }catch(_){}
+    if(!err){ setStatus("Nicht verbunden"); return; }
+    setStatus(err.title,"err"); showBleError(err);
   }
 }
 function bleDisconnect(){
@@ -1661,6 +1847,7 @@ function bleDisconnect(){
   try{ if(live.dev&&live.dev.gatt.connected) live.dev.gatt.disconnect(); else onDisconnected(""); }catch(e){ onDisconnected(""); }
 }
 function startDemo(){
+  live.meta=null; showBleError(null);
   const s=byId($("#mSensor").value);
   const cols=s.demo(600); const dt=(cols[0][1][1]-cols[0][1][0])||0.1; let i=0;
   live.sensorId=s.id;
