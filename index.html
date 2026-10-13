@@ -223,6 +223,16 @@ input[type=file]{max-width:100%}
 .case-ov.compact{inset:auto;top:8px;right:8px;padding:0;background:transparent;flex-direction:row;gap:6px}
 .case-ov.compact p{display:none}
 .case-ov.compact .btn{padding:4px 10px;font-size:.85rem}
+.case-info{margin:10px 0 0}
+.case-dims{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.92rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;margin:4px 0 10px}
+.case-dims b{color:var(--ink)}
+.case-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:10px 0}
+.case-photos button{padding:0;border:1.5px solid var(--line);border-radius:6px;overflow:hidden;cursor:zoom-in;background:var(--paper);aspect-ratio:16/9}
+.case-photos img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-dlg{border:0;padding:0;max-width:min(96vw,1400px);background:transparent}
+.photo-dlg::backdrop{background:rgba(5,12,28,.85)}
+.photo-dlg img{max-width:100%;max-height:86vh;display:block;border-radius:6px}
+.photo-dlg form{text-align:right;margin-top:8px}
 .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:-1px;border:1px solid rgba(0,0,0,.3)}
 .wire-note{display:block;font-weight:400;color:var(--ink-soft);font-size:.88rem}
 .view-note{font-size:.9rem;color:var(--ink-soft);margin:8px 0 0}
@@ -332,7 +342,7 @@ input[type=file]{max-width:100%}
           <p id="caseMsg"></p>
           <label class="btn" for="stlIn" id="stlLabel" style="cursor:pointer">STL-Datei laden</label>
           <input type="file" id="stlIn" accept=".stl" hidden>
-          <button class="btn ghost" id="caseRemove" hidden>Gehäuse entfernen</button>
+          <button class="btn ghost" id="caseRemove" hidden>Eigenes Gehäuse entfernen</button>
         </div>
         <div class="stage-hint">Ziehen zum Drehen</div>
         <div class="stage-btns">
@@ -342,6 +352,7 @@ input[type=file]{max-width:100%}
         </div>
       </div>
       <p class="view-note" id="viewNote"></p>
+      <div class="case-info" id="caseInfo" hidden></div>
       <details id="principleBox" open>
         <summary>Funktionsprinzip</summary>
         <div id="principle"></div>
@@ -501,6 +512,7 @@ input[type=file]{max-width:100%}
 
 </main>
 
+<dialog class="photo-dlg" id="photoDlg"><img id="photoImg" alt=""><form method="dialog"><button class="btn">Schließen</button></form></dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -1260,7 +1272,38 @@ function buildWired(s){
   return root;
 }
 
-/* ---------- Gehäuse (STL) ---------- */
+/* ---------- Vorhandene Gehäuse aus dem Sensoren-Repository ---------- */
+const CASE_SETS={
+  td:{title:"Gehäuse der Temperatur- & Drucksensorbox",note:"Eine gemeinsame Box für die beiden DS18B20-Sonden und den BMP280.",
+      mesh:"gehaeuse/temperatur-druck.json",file:"gehaeuse/temperatur-druck-gehaeuse.3mf",fileLabel:"Druckdatei (.3mf)",
+      photos:[["gehaeuse/temperatur-druck-foto-1.jpg","Gedruckte Gehäuse mit Deckeln"],["gehaeuse/temperatur-druck-foto-2.jpg","Gehäuse und Deckel"],["gehaeuse/temperatur-druck-foto-3.jpg","Innenansicht mit Kabeldurchführung"],["gehaeuse/temperatur-druck-foto-4.jpg","Verkabelte Box"]]},
+  tof:{title:"Gehäuse des Laser-Abstandssensors (ToF)",note:"Gehäuse für den VL53L0X-Abstandssensor aus dem Repository.",
+      mesh:"gehaeuse/abstand-tof.json",file:"gehaeuse/abstand-tof-gehaeuse.step",fileLabel:"CAD-Datei (.step)",photos:[]}
+};
+const CASE_OF={temp:"td",press:"td",dist:"tof"};
+const builtinMesh={};   // key -> {parts:[{name,geo}],dims} | "loading" | "error"
+function b64(s,T){const bin=atob(s);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new T(u.buffer)}
+function loadBuiltin(key){
+  if(builtinMesh[key]) return;
+  builtinMesh[key]="loading";
+  fetch(CASE_SETS[key].mesh).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(d=>{
+    const parts=d.parts.map(p=>{const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.BufferAttribute(b64(p.pos,Float32Array),3));geo.setIndex(new THREE.BufferAttribute(b64(p.idx,p.idxType==="u16"?Uint16Array:Uint32Array),1));geo.computeVertexNormals();geo.computeBoundingBox();return {name:p.name,geo}});
+    const dims=parts.map(p=>{const s=p.geo.boundingBox.getSize(new THREE.Vector3());return {name:p.name,x:s.x,y:s.y,z:s.z}});
+    builtinMesh[key]={parts,dims};
+  }).catch(()=>{builtinMesh[key]="error"}).finally(()=>{ if(mode==="case"&&CASE_OF[cur]===key){updateCaseOverlay();buildModel(cur);} });
+}
+function caseInfoHTML(key){
+  const c=CASE_SETS[key], m=builtinMesh[key];
+  const fmt=v=>Math.round(v).toLocaleString("de-DE");
+  const dims=(m&&m.dims)?`<div class="case-dims">${m.dims.sort((a,b)=>a.name==="Gehäuse"?-1:1).map(d=>`<span>${esc(d.name)}: <b>${fmt(d.x)} × ${fmt(d.y)} × ${fmt(d.z)} mm</b></span>`).join("")}</div>`:"";
+  const photos=c.photos.length?`<div class="case-photos">${c.photos.map(([src,alt])=>`<button type="button" data-photo="${src}" data-alt="${esc(alt)}"><img src="${src}" alt="${esc(alt)}" loading="lazy"></button>`).join("")}</div>`:"";
+  return `<h3>${esc(c.title)}</h3><p class="small muted" style="margin:4px 0">${esc(c.note)}</p>${dims}${photos}
+    <div class="btn-row"><a class="btn" href="${c.file}" download>${esc(c.fileLabel)} herunterladen</a></div>`;
+}
+$("#caseInfo").addEventListener("click",e=>{const b=e.target.closest("[data-photo]");if(!b)return;const d=$("#photoDlg");$("#photoImg").src=b.dataset.photo;$("#photoImg").alt=b.dataset.alt;if(d.showModal)d.showModal();else window.open(b.dataset.photo)});
+$("#photoDlg").addEventListener("click",e=>{if(e.target===e.currentTarget)e.currentTarget.close()});
+
+/* ---------- Eigenes Gehäuse (STL) ---------- */
 const caseGeo={};
 function caseKey(id){return "wseminar-gehaeuse-"+id}
 function parseSTL(buf){
@@ -1289,14 +1332,21 @@ function loadStoredCase(id){
   return caseGeo[id];
 }
 function updateCaseOverlay(){
-  const ov=$("#caseOv");
-  if(mode!=="case"){ov.classList.remove("show","compact");return}
-  const has=threeOK && !!loadStoredCase(cur);
+  const ov=$("#caseOv"), info=$("#caseInfo");
+  if(mode!=="case"){ov.classList.remove("show","compact");info.hidden=true;return}
+  const own=threeOK && !!loadStoredCase(cur);
+  const key=CASE_OF[cur]; const bm=key&&builtinMesh[key];
+  if(key && threeOK) loadBuiltin(key);
+  const has=!!(own || (bm && typeof bm==="object"));
   ov.classList.add("show"); ov.classList.toggle("compact",has);
-  $("#caseRemove").hidden=!has;
-  $("#stlLabel").textContent=has?"Andere STL laden":"STL-Datei laden";
-  $("#caseMsg").textContent=`Für ${byId(cur).name} ist noch kein Gehäuse hinterlegt. Lade die STL-Datei eures Gehäuses (z. B. aus dem 3D-Druck), dann erscheint es hier.`;
-  $("#viewNote").textContent=has?"Euer Gehäuse, eingelesen aus der STL-Datei (Maße in mm).":"Gehäuse werden in diesem Browser gespeichert. Sehr große Dateien bleiben nur bis zum Schließen der Seite.";
+  $("#caseRemove").hidden=!own;
+  $("#stlLabel").textContent=own?"Andere STL laden":(key?"Eigene STL laden":"STL-Datei laden");
+  if(key && bm==="loading") $("#caseMsg").textContent="Gehäuse wird geladen …";
+  else if(key && bm==="error") $("#caseMsg").textContent="Das Gehäusemodell konnte nicht geladen werden. Prüfe die Internetverbindung oder lade eine eigene STL-Datei.";
+  else $("#caseMsg").textContent=`Für ${byId(cur).name} ist noch kein Gehäuse hinterlegt. Lade die STL-Datei eures Gehäuses (z. B. aus dem 3D-Druck), dann erscheint es hier.`;
+  $("#viewNote").textContent=own?"Dein eigenes Gehäuse aus der STL-Datei (nur in diesem Browser gespeichert).":
+    (key?"Gehäuse und Deckel aus dem 3D-Modell des Sensoren-Repositorys, nebeneinander dargestellt.":"Gehäuse werden in diesem Browser gespeichert. Sehr große Dateien bleiben nur bis zum Schließen der Seite.");
+  if(key){ info.innerHTML=caseInfoHTML(key); info.hidden=false; } else { info.hidden=true; }
 }
 $("#stlIn").addEventListener("change",e=>{
   const f=e.target.files[0]; if(!f) return; e.target.value="";
@@ -1319,14 +1369,20 @@ $("#caseRemove").addEventListener("click",()=>{
 });
 
 /* ---------- Szene aufbauen ---------- */
-function disposeTree(o){o.traverse(n=>{if(n.geometry&&!Object.values(caseGeo).includes(n.geometry))n.geometry.dispose();if(n.material){(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{if(m.map&&m.map!==silk)m.map.dispose();m.dispose()})}})}
+function isKeptGeo(g){return Object.values(caseGeo).includes(g)||Object.values(builtinMesh).some(b=>b&&typeof b==="object"&&b.parts.some(p=>p.geo===g))}
+function disposeTree(o){o.traverse(n=>{if(n.geometry&&!isKeptGeo(n.geometry))n.geometry.dispose();if(n.material){(Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{if(m.map&&m.map!==silk)m.map.dispose();m.dispose()})}})}
 function buildModel(id){
   if(!viewerReady) return;
   while(modelGroup.children.length){const c=modelGroup.children.pop();disposeTree(c)}
   const s=byId(id); let g;
   if(mode==="wired" && !s.hub){ g=buildWired(s); }
   else if(mode==="case"){
-    g=new THREE.Group(); const geo=loadStoredCase(id);
+    g=new THREE.Group(); const geo=loadStoredCase(id); const bm=CASE_OF[id]&&builtinMesh[CASE_OF[id]];
+    if(!geo && bm && typeof bm==="object"){
+      const base=new THREE.Color(s.color).lerp(new THREE.Color(0x30343c),0.35);
+      bm.parts.forEach(p=>{const lid=p.name==="Deckel";const m=new THREE.Mesh(p.geo,new THREE.MeshStandardMaterial({color:lid?base.clone().lerp(new THREE.Color(0xffffff),0.3):base,roughness:0.7,metalness:0.05,side:THREE.DoubleSide}));
+        m.rotation.x=-Math.PI/2; m.scale.setScalar(0.1); g.add(m);});
+    }
     if(geo){const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:new THREE.Color(s.color).lerp(new THREE.Color(0xffffff),0.35),roughness:0.6,metalness:0.05,side:THREE.DoubleSide}));
       m.rotation.x=-Math.PI/2; m.scale.setScalar(0.1); g.add(m);}
   }

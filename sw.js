@@ -1,7 +1,7 @@
 /* Service Worker: macht den Sensor-Baukasten offline nutzbar.
    Nach jeder Änderung an den Dateien die Versionsnummer erhöhen,
    damit alle Geräte die neue Fassung laden. */
-const VERSION = "sensor-baukasten-v4";
+const VERSION = "sensor-baukasten-v5";
 const CORE = [
   "./",
   "./index.html",
@@ -12,7 +12,9 @@ const CORE = [
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",
   "./icons/apple-touch-icon.png",
-  "./icons/favicon-32.png"
+  "./icons/favicon-32.png",
+  "./gehaeuse/temperatur-druck.json",
+  "./gehaeuse/abstand-tof.json"
 ];
 
 self.addEventListener("install", event => {
