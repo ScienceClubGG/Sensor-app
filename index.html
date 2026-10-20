@@ -734,39 +734,78 @@ void nullpunktKalibrieren() {
   demo:(n)=>{const x=[],y=[];for(let i=0;i<n;i++){const t=i*0.05;x.push(t);const d=6-5*Math.abs(Math.sin(t*0.7));y.push(80/Math.pow(d,2.2)+(Math.random()-.5)*0.25)}return [["Zeit (s)",x],["Flussdichte (mT)",y]]}
 },
 {
-  id:"ui", name:"Spannungs- und Stromsensor", module:"INA219", color:"#7B3FB8",
+  id:"ui", name:"Spannungs- und Stromsensor (Multimeter)", module:"INA226", color:"#7B3FB8",
   qty:"Spannung in V, Stromstärke in mA, Leistung in mW",
-  principle:"<p>Der Strom fließt durch einen kleinen Messwiderstand (Shunt, 0,1 Ω). Der INA219 misst die winzige Spannung darüber und berechnet nach dem ohmschen Gesetz die Stromstärke. Gleichzeitig misst er die Spannung am Verbraucher gegen Masse.</p><p>Wichtig: Der Minuspol des Messstromkreises muss mit GND des ESP32 verbunden sein, sonst stimmt die Spannungsmessung nicht.</p><p>Einsatz: Kennlinien, Kondensatorladung, Leistung von Solarzellen.</p>",
-  specs:[["Spannung","0 bis 26 V"],["Stromstärke","bis ±3,2 A (Shunt 0,1 Ω)"],["Auflösung","4 mV; Strom 0,1 mA (Standard 32 V / 2 A) bis 0,8 mA (3,2 A)"],["Wandler","12 Bit"],["Schnittstelle","I²C, Adresse 0x40"],["Versorgung","3,0 bis 5,5 V"],["Preis","ca. 3–6 €"]],
+  principle:"<p>Der Strom fließt durch einen kleinen Messwiderstand (Shunt, 0,1 Ω, Aufdruck „R100“). Der INA226 misst die winzige Spannung darüber mit 16 Bit und berechnet nach dem ohmschen Gesetz I = U / R die Stromstärke. Über den Pin VBS misst er zusätzlich die Spannung am Verbraucher. Der ESP32 berechnet daraus die Leistung P = U · I.</p><p>Wichtig: VBS mit IN− verbinden und den Minuspol des Messstromkreises mit GND des ESP32 verbinden, sonst stimmt die Spannungsmessung nicht. Nur Gleichspannung bis 36 V und Ströme bis ca. 0,8 A anlegen.</p><p>Einsatz: Kennlinien von Widerstand, Glühlampe und LED, Kondensatorladung, Leistung von Solarzellen und Motoren.</p>",
+  specs:[["Spannung","0 bis 36 V, Auflösung 1,25 mV"],["Stromstärke","ca. ±800 mA (Shunt 0,1 Ω), Auflösung 0,025 mA"],["Wandler","16 Bit, Mittelung 1 bis 1024"],["Genauigkeit","Verstärkungsfehler max. 0,1 %"],["Schnittstelle","I²C, Adresse 0x40 (bis 0x4F)"],["Versorgung","2,7 bis 5,5 V"],["Bibliothek","keine nötig (Register direkt)"],["Preis","ca. 3–6 €"]],
   wires:[
     {s:"VCC",e:"3V3",c:C.v33},
     {s:"GND",e:"GND2",c:C.gnd},
     {s:"SCL",e:"D22",c:C.scl,note:"I²C-Takt"},
     {s:"SDA",e:"D21",c:C.sda,note:"I²C-Daten"},
     {s:"BAT-",e:"GND",c:C.gnd,sl:"Batterie −",note:"gemeinsame Masse"},
-    {s:"T+",s2:"BAT+",c:C.v33,sl:"Vin+",tl:"Batterie +",note:"Strom fließt hinein"},
-    {s:"T-",s2:"L1",c:C.load,sl:"Vin−",tl:"Lampe",note:"Strom fließt weiter zum Verbraucher"},
+    {s:"T+",s2:"BAT+",c:C.v33,sl:"IN+",tl:"Batterie +",note:"Strom fließt hinein"},
+    {s:"T-",s2:"L1",c:C.load,sl:"IN−",tl:"Lampe",note:"Strom fließt weiter zum Verbraucher"},
+    {s:"VBS",s2:"T-",c:C.sig1,tl:"IN−",note:"misst die Spannung am Verbraucher"},
     {s:"BAT-",s2:"L2",c:C.gnd,sl:"Batterie −",tl:"Lampe",note:"Rückleitung"}],
   place:{x:0,z:-4.2,rot:Math.PI},
-  src:{title:"Spannung und Strom",descr:"Spannung, Stromstärke und Leistung mit INA219",libs:["phyphox BLE","Adafruit INA219 (installiert Adafruit BusIO mit)"],
-    includes:"#include <Wire.h>\n#include <Adafruit_INA219.h>\n",interval:100,
-    settings:"const int PIN_SDA = 21;\nconst int PIN_SCL = 22;",
-    globals:"Adafruit_INA219 ina219;   // Standardadresse 0x40",
+  src:{title:"Multimeter",descr:"Spannung, Stromstärke und Leistung mit INA226",libs:["phyphox BLE (für den INA226 ist keine Bibliothek nötig)"],
+    includes:"#include <Wire.h>\n",interval:50,
+    usage:["LED leuchtet, sobald der INA226 erkannt ist. Ohne Sensor bleibt Bluetooth trotzdem aktiv."],
+    settings:"const int PIN_SDA = 21;\nconst int PIN_SCL = 22;\nconst uint8_t INA_ADRESSE = 0x40;   // A0/A1 offen = 0x40\nconst float SHUNT_OHM = 0.1;         // Aufdruck \"R100\" = 0,1 Ohm; zum Kalibrieren anpassen",
+    globals:"bool sensorBereit = false;",
     graphs:[{label:"Spannung",unit:"V"},{label:"Stromstaerke",unit:"mA"},{label:"Leistung",unit:"mW"}],writeVars:"spannung, strom, leistung",
-    functions:`// (keine eigenen Hilfsfunktionen nötig, die Bibliothek rechnet um)`,
-    setup:`  Wire.begin(PIN_SDA, PIN_SCL);
-  if (!ina219.begin()) {
-    Serial.println("INA219 nicht gefunden. SDA, SCL und Versorgung prüfen.");
-    while (true) delay(1000);
+    functions:`// Register des INA226 schreiben bzw. lesen (je 16 Bit)
+void inaSchreiben(uint8_t reg, uint16_t wert) {
+  Wire.beginTransmission(INA_ADRESSE);
+  Wire.write(reg);
+  Wire.write(wert >> 8);
+  Wire.write(wert & 0xFF);
+  Wire.endTransmission();
+}
+
+bool inaLesen(uint8_t reg, uint16_t &wert) {
+  Wire.beginTransmission(INA_ADRESSE);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom(INA_ADRESSE, (uint8_t)2) != 2) return false;
+  wert = (Wire.read() << 8) | Wire.read();
+  return true;
+}
+
+// Prüft die Hersteller-ID (0x5449 = "TI") und stellt den Messmodus ein
+bool inaStarten() {
+  uint16_t id = 0;
+  if (!inaLesen(0xFE, id) || id != 0x5449) return false;
+  inaSchreiben(0x00, 0x4527);   // 16-fach Mittelung, 1,1 ms Wandlung, kontinuierlich
+  return true;
+}`,
+    setup:`  pinMode(LED_BUILTIN, OUTPUT);
+  Wire.begin(PIN_SDA, PIN_SCL);
+  sensorBereit = inaStarten();
+  if (!sensorBereit) Serial.println("INA226 nicht gefunden. SDA, SCL und Versorgung prüfen.");
+  digitalWrite(LED_BUILTIN, sensorBereit ? HIGH : LOW);`,
+    loopPre:`  if (!sensorBereit) {                    // ohne Sensor alle 3 s neu suchen
+    static unsigned long letzterVersuch = 0;
+    if (millis() - letzterVersuch > 3000) {
+      letzterVersuch = millis();
+      sensorBereit = inaStarten();
+      digitalWrite(LED_BUILTIN, sensorBereit ? HIGH : LOW);
+    }
+    return;
+  }`,
+    loop:`  uint16_t rohShunt = 0, rohBus = 0;
+  if (!inaLesen(0x01, rohShunt) || !inaLesen(0x02, rohBus)) {
+    Serial.println("Lesefehler INA226");
+    sensorBereit = false;
+    return;
   }
-  // Messbereich wählen (Standard: 32 V, 2 A). Für kleine Ströme genauer:
-  // ina219.setCalibration_32V_1A();
-  // ina219.setCalibration_16V_400mA();`,
-    loop:`  float spannung = ina219.getBusVoltage_V();   // Spannung am Verbraucher (Vin- gegen GND)
-  float strom    = ina219.getCurrent_mA();     // Stromstärke durch den Shunt
-  float leistung = ina219.getPower_mW();       // P = U * I
+  float shuntSpannung = (int16_t)rohShunt * 2.5e-6;    // V, 2,5 µV pro Bit
+  float spannung = rohBus * 1.25e-3;                    // V, 1,25 mV pro Bit (Pin VBS)
+  float strom    = shuntSpannung / SHUNT_OHM * 1000.0;  // mA, ohmsches Gesetz
+  float leistung = spannung * strom;                    // mW, P = U * I
   PhyphoxBLE::write(spannung, strom, leistung);
-  Serial.printf("U = %.3f V   I = %.1f mA   P = %.1f mW\\n", spannung, strom, leistung);`},
+  Serial.printf("U = %.3f V   I = %.2f mA   P = %.1f mW\\n", spannung, strom, leistung);`},
   demo:(n)=>{const x=[],u=[],c=[],p=[];for(let i=0;i<n;i++){const t=i*0.1;x.push(t);const uu=5*(1-Math.exp(-t/4))+(Math.random()-.5)*0.01;const cc=50*Math.exp(-t/4)+(Math.random()-.5)*0.4;u.push(uu);c.push(cc);p.push(uu*cc)}return [["Zeit (s)",x],["Spannung (V)",u],["Stromstärke (mA)",c],["Leistung (mW)",p]]}
 },
 {
@@ -913,7 +952,7 @@ void befehleVerarbeiten() {
     {s:"3V3",tl:"Versorgung 3,3-V-Sensoren",c:C.v33,hubRow:true},
     {s:"VIN",tl:"5 V vom USB, z. B. HC-SR04",c:C.v5,hubRow:true},
     {s:"GND",tl:"Masse, zwei Pins vorhanden",c:C.gnd,hubRow:true},
-    {s:"GPIO 21 / 22",tl:"I²C: SDA / SCL (INA219, BMP280)",c:C.sda,hubRow:true},
+    {s:"GPIO 21 / 22",tl:"I²C: SDA / SCL (INA226, BMP280)",c:C.sda,hubRow:true},
     {s:"GPIO 34",tl:"Analogeingang Hall-Sensor",c:C.sig2,hubRow:true},
     {s:"GPIO 4",tl:"1-Wire DS18B20",c:C.sig1,hubRow:true},
     {s:"GPIO 5 / 18",tl:"TRIG / ECHO HC-SR04",c:C.sig3,hubRow:true},
@@ -1186,7 +1225,7 @@ const BUILD={
     box(g,0.8,0.55,0.6,M(0x2a7bd6),-0.15,0.33,0.7);
     cyl(g,0.13,0.06,MET(0xbbbbbb),-0.35,0.63,0.7,16); cyl(g,0.13,0.06,MET(0xbbbbbb),0.05,0.63,0.7,16);
     P["T-"]=V(-0.35,0.66,0.7); P["T+"]=V(0.05,0.66,0.7);
-    header(g,["VCC","GND","SCL","SDA","VIN-","VIN+"],-0.635,-0.85,"x",P);
+    header(g,["VCC","GND","SCL","SDA","ALE","VBS"],-0.635,-0.85,"x",P);
     // Batterie
     box(g,1.6,1.0,2.2,M(0x2a2a2a),-1.6,0.5,3.2); box(g,1.62,0.3,2.22,M(0xd4af37),-1.6,0.55,3.2);
     cyl(g,0.13,0.12,MET(0xc0c0c0),-1.95,1.06,2.35,16); cyl(g,0.16,0.12,MET(0xc0c0c0),-1.25,1.06,2.35,6);
@@ -1757,7 +1796,7 @@ function chLabel(i){
 function matchSensor(name){
   if(!name) return null;
   const n=name.toLowerCase().replace(/[^a-z0-9äöü]/g,"");
-  const keys={temp:["temperatur","ds18b20"],mag:["magnet","hall","ss49"],ui:["spannung","strom","ina219"],dist:["abstand","ultraschall","hcsr04","distanz"],force:["kraft","waage","hx711","wägezelle","waegezelle"],press:["druck","bmp280","luftdruck"]};
+  const keys={temp:["temperatur","ds18b20"],mag:["magnet","hall","ss49"],ui:["spannung","strom","ina226","ina219","multimeter","leistung"],dist:["abstand","ultraschall","hcsr04","distanz"],force:["kraft","waage","hx711","wägezelle","waegezelle"],press:["druck","bmp280","luftdruck"]};
   return MEASURABLE.find(s=>n.startsWith(s.src.title.toLowerCase().replace(/[^a-z0-9äöü]/g,""))||(keys[s.id]||[]).some(k=>n.includes(k)))||null;
 }
 function parseExperiment(xml){
