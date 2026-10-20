@@ -1313,20 +1313,23 @@ function buildWired(s){
 
 /* ---------- Vorhandene Gehäuse aus dem Sensoren-Repository ---------- */
 const CASE_SETS={
-  td:{title:"Gehäuse der Temperatur- & Drucksensorbox",note:"Eine gemeinsame Box für die beiden DS18B20-Sonden und den BMP280.",
-      mesh:"gehaeuse/temperatur-druck.json",file:"gehaeuse/temperatur-druck-gehaeuse.3mf",fileLabel:"Druckdatei (.3mf)",
-      photos:[["gehaeuse/temperatur-druck-foto-1.jpg","Gedruckte Gehäuse mit Deckeln"],["gehaeuse/temperatur-druck-foto-2.jpg","Gehäuse und Deckel"],["gehaeuse/temperatur-druck-foto-3.jpg","Innenansicht mit Kabeldurchführung"],["gehaeuse/temperatur-druck-foto-4.jpg","Verkabelte Box"]]},
-  tof:{title:"Gehäuse des Laser-Abstandssensors (ToF)",note:"Gehäuse für den VL53L0X-Abstandssensor aus dem Repository.",
-      mesh:"gehaeuse/abstand-tof.json",file:"gehaeuse/abstand-tof-gehaeuse.step",fileLabel:"CAD-Datei (.step)",photos:[]}
+  mag:{title:"Gehäuse des Magnetfeldsensors (MLX90393)",note:"Ein zusammenhängender Körper: Steuerbox mit ESP32 und Taster, steifer Arm mit Kabelkanal und flacher Sensorkopf. Das Fadenkreuz auf dem Kopfdeckel markiert den Chip (13,4 mm hinter der Spitze), so lässt sich die Messstelle genau an Spulen und Magneten ausrichten.",
+      mesh:"gehaeuse/magnetfeld.json",file:"gehaeuse/magnetfeld-gehaeuse.3mf",fileLabel:"Druckdatei (.3mf)",photos:[]},
+  td:{title:"Gehäuse der Temperatur- & Drucksensorbox",note:"Ein zusammenhängender Körper. Der BMP280 sitzt in einem belüfteten Kopf am Arm, weit weg von der Abwärme des ESP32. Die beiden DS18B20-Kabel werden von oben in U-Schlitze der Box gelegt und mit Kabelbindern entlastet.",
+      mesh:"gehaeuse/temperatur-druck.json",file:"gehaeuse/temperatur-druck-gehaeuse.3mf",fileLabel:"Druckdatei (.3mf)",photos:[]},
+  tof:{title:"Gehäuse des Laser-Abstandssensors (ToF)",note:"Ein zusammenhängender Körper. Die Platine steht hochkant im Kopf, der Sensor blickt durch ein nach außen aufgeweitetes Fenster (freies Sichtfeld über 25°). Der Kopf bekommt einen eigenen kleinen Deckel.",
+      mesh:"gehaeuse/abstand-tof.json",file:"gehaeuse/abstand-tof-gehaeuse.3mf",fileLabel:"Druckdatei (.3mf)",photos:[]},
+  ui:{title:"Gehäuse des Multimeters (INA226)",note:"Eine Box mit Platz für ESP32 und INA226. Die Schraubklemmen sind durch ein Fenster in der Stirnwand und eine Öffnung im Deckel zugänglich.",
+      mesh:"gehaeuse/multimeter.json",file:"gehaeuse/multimeter-gehaeuse.3mf",fileLabel:"Druckdatei (.3mf)",photos:[]}
 };
-const CASE_OF={temp:"td",press:"td",dist:"tof"};
+const CASE_OF={temp:"td",press:"td",dist:"tof",mag:"mag",ui:"ui"};
 const builtinMesh={};   // key -> {parts:[{name,geo}],dims} | "loading" | "error"
 function b64(s,T){const bin=atob(s);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new T(u.buffer)}
 function loadBuiltin(key){
   if(builtinMesh[key]) return;
   builtinMesh[key]="loading";
   fetch(CASE_SETS[key].mesh).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(d=>{
-    const parts=d.parts.map(p=>{const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.BufferAttribute(b64(p.pos,Float32Array),3));geo.setIndex(new THREE.BufferAttribute(b64(p.idx,p.idxType==="u16"?Uint16Array:Uint32Array),1));geo.computeVertexNormals();geo.computeBoundingBox();return {name:p.name,geo}});
+    const parts=d.parts.map(p=>{let geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.BufferAttribute(b64(p.pos,Float32Array),3));geo.setIndex(new THREE.BufferAttribute(b64(p.idx,p.idxType==="u16"?Uint16Array:Uint32Array),1));geo=geo.toNonIndexed();geo.computeVertexNormals();geo.computeBoundingBox();return {name:p.name,geo}});
     const dims=parts.map(p=>{const s=p.geo.boundingBox.getSize(new THREE.Vector3());return {name:p.name,x:s.x,y:s.y,z:s.z}});
     builtinMesh[key]={parts,dims};
   }).catch(()=>{builtinMesh[key]="error"}).finally(()=>{ if(mode==="case"&&CASE_OF[cur]===key){updateCaseOverlay();buildModel(cur);} });
@@ -1419,7 +1422,7 @@ function buildModel(id){
     g=new THREE.Group(); const geo=loadStoredCase(id); const bm=CASE_OF[id]&&builtinMesh[CASE_OF[id]];
     if(!geo && bm && typeof bm==="object"){
       const base=new THREE.Color(s.color).lerp(new THREE.Color(0x30343c),0.35);
-      bm.parts.forEach(p=>{const lid=p.name==="Deckel";const m=new THREE.Mesh(p.geo,new THREE.MeshStandardMaterial({color:lid?base.clone().lerp(new THREE.Color(0xffffff),0.3):base,roughness:0.7,metalness:0.05,side:THREE.DoubleSide}));
+      bm.parts.forEach(p=>{const lid=p.name.startsWith("Deckel");const m=new THREE.Mesh(p.geo,new THREE.MeshStandardMaterial({color:lid?base.clone().lerp(new THREE.Color(0xffffff),0.3):base,roughness:0.7,metalness:0.05,side:THREE.DoubleSide}));
         m.rotation.x=-Math.PI/2; m.scale.setScalar(0.1); g.add(m);});
     }
     if(geo){const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:new THREE.Color(s.color).lerp(new THREE.Color(0xffffff),0.35),roughness:0.6,metalness:0.05,side:THREE.DoubleSide}));
