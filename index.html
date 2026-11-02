@@ -1313,7 +1313,7 @@ function buildWired(s){
 
 /* ---------- Vorhandene Gehäuse aus dem Sensoren-Repository ---------- */
 const CASE_SETS={
-  mag:{title:"Gehäuse des Magnetfeldsensors (MLX90393)",note:"Ein zusammenhängender Körper: Steuerbox mit ESP32 und Taster, steifer Arm mit Kabelkanal und flacher Sensorkopf. Das Fadenkreuz auf dem Kopfdeckel markiert den Chip (13,4 mm hinter der Spitze), so lässt sich die Messstelle genau an Spulen und Magneten ausrichten.",
+  mag:{title:"Gehäuse des Magnetfeldsensors (MLX90393)",note:"Ein zusammenhängender Körper: Steuerbox mit ESP32 und Taster, steifer Arm mit Kabelkanal und flacher Sensorkopf. Fadenkreuz und Achsenpfeile (X zur Spitze, Y nach links, Z nach oben) auf dem Kopfdeckel markieren den Chip (12,3 mm hinter der Spitze), so lässt sich die Messstelle genau an Spulen und Magneten ausrichten. Der ESP32 wird auf zwei Stelzen geklebt, das USB-C-Fenster ist nach oben offen.",
       mesh:"gehaeuse/magnetfeld.json",file:"gehaeuse/magnetfeld-gehaeuse.3mf",fileLabel:"Druckdatei (.3mf)",photos:[]},
   td:{title:"Gehäuse der Temperatur- & Drucksensorbox",note:"Ein zusammenhängender Körper. Der BMP280 sitzt in einem belüfteten Kopf am Arm, weit weg von der Abwärme des ESP32. Die beiden DS18B20-Kabel werden von oben in U-Schlitze der Box gelegt und mit Kabelbindern entlastet.",
       mesh:"gehaeuse/temperatur-druck.json",file:"gehaeuse/temperatur-druck-gehaeuse.3mf",fileLabel:"Druckdatei (.3mf)",photos:[]},
