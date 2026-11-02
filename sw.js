@@ -1,7 +1,7 @@
 /* Service Worker: macht den Sensor-Baukasten offline nutzbar.
    Nach jeder Änderung an den Dateien die Versionsnummer erhöhen,
    damit alle Geräte die neue Fassung laden. */
-const VERSION = "sensor-baukasten-v8";
+const VERSION = "sensor-baukasten-v9";
 const CORE = [
   "./",
   "./index.html",
